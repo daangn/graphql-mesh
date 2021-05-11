@@ -22,36 +22,32 @@ import {
 import { OasTitlePathMethodObject } from './openapi-to-graphql/types/options';
 import { GraphQLInputType } from 'graphql-compose/lib/graphql';
 import { GraphQLID } from 'graphql';
-
-interface OpenAPIIntrospectionCache {
-  spec?: Oas3;
-}
+import { PredefinedProxyOptions, StoreProxy } from 'packages/utils/src/mesh-store';
 
 export default class OpenAPIHandler implements MeshHandler {
   private config: YamlConfig.OpenapiHandler;
   private baseDir: string;
   private cache: KeyValueCache;
   private pubsub: MeshPubSub;
-  private introspectionCache: OpenAPIIntrospectionCache;
+  private oasSchema: StoreProxy<Oas3>;
 
-  constructor({
-    config,
-    baseDir,
-    cache,
-    pubsub,
-    introspectionCache = {},
-  }: GetMeshSourceOptions<YamlConfig.OpenapiHandler, OpenAPIIntrospectionCache>) {
+  constructor({ name, config, baseDir, cache, pubsub, store }: GetMeshSourceOptions<YamlConfig.OpenapiHandler>) {
     this.config = config;
     this.baseDir = baseDir;
     this.cache = cache;
     this.pubsub = pubsub;
-    this.introspectionCache = introspectionCache;
+    // TODO: This validation here should be more flexible, probably specific to OAS
+    // Because we can handle json/swagger files, and also we might want to use this:
+    // https://github.com/Azure/openapi-diff
+    this.oasSchema = store.proxy<Oas3>('schema.json', PredefinedProxyOptions.JsonWithoutValidation);
   }
 
   private async getCachedSpec(fetch: WindowOrWorkerGlobalScope['fetch']): Promise<Oas3> {
     const { source } = this.config;
-    if (!this.introspectionCache.spec) {
-      this.introspectionCache.spec =
+    let value = await this.oasSchema.get();
+
+    if (!value) {
+      value =
         typeof source !== 'string'
           ? source
           : await readFileOrUrlWithCache<Oas3>(source, this.cache, {
@@ -60,8 +56,11 @@ export default class OpenAPIHandler implements MeshHandler {
               headers: this.config.schemaHeaders,
               fetch,
             });
+
+      await this.oasSchema.set(value);
     }
-    return this.introspectionCache.spec;
+
+    return value;
   }
 
   async getMeshSource(): Promise<MeshSource> {

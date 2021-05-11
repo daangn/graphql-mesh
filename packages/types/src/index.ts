@@ -5,6 +5,7 @@ import * as YamlConfig from './config';
 import { KeyValueCache, KeyValueCacheSetOptions } from 'fetchache';
 import { Executor, Subscriber, Transform, MergedTypeConfig } from '@graphql-tools/delegate';
 import { TypedDocumentNode } from '@graphql-typed-document-node/core';
+import { MeshStore } from 'packages/utils/src/mesh-store';
 
 export { YamlConfig };
 
@@ -28,6 +29,7 @@ export type GetMeshSourceOptions<THandlerConfig, TIntrospectionCache = never> = 
   cache: KeyValueCache;
   pubsub: MeshPubSub;
   introspectionCache?: TIntrospectionCache;
+  store: MeshStore;
 };
 
 // Handlers

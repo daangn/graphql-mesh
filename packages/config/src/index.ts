@@ -27,6 +27,7 @@ import {
 import { stringInterpolator } from '@graphql-mesh/utils';
 import { MergedTypeConfig, MergedFieldConfig } from '@graphql-tools/delegate';
 import { get, set } from 'lodash';
+import { FsStoreStorageAdapter, MeshStore } from 'packages/utils/src/mesh-store';
 
 export type ConfigProcessOptions = {
   dir?: string;
@@ -90,6 +91,19 @@ export async function processConfig(
   const introspectionCache = ignoreIntrospectionCache
     ? {}
     : await resolveIntrospectionCache(config.introspectionCache, dir);
+
+  const storeStorageAdapter = new FsStoreStorageAdapter();
+  const rootStore = new MeshStore(resolve(dir, '.mesh'), storeStorageAdapter, {
+    /**
+     * TODO:
+     * `mesh start` => { readonly: true, validate: false }
+     * `mesh dev` => { readonly: false, validate: true } => validation error should show a prompt for confirmation
+     * `mesh validate` => { readonly: true, validate: true } => should fetch from remote and try to update
+     * readonly
+     */
+    readonly: false,
+    validate: false,
+  });
 
   const [sources, transforms, additionalTypeDefs, additionalResolvers, merger] = await Promise.all([
     Promise.all(
@@ -209,6 +223,7 @@ export async function processConfig(
               }),
           };
         }
+
         return {
           name: source.name,
           handler: new HandlerCtor({
@@ -218,6 +233,7 @@ export async function processConfig(
             cache,
             pubsub,
             introspectionCache: handlerIntrospectionCache,
+            store: rootStore.child(`source-${source.name}`),
           }),
           transforms,
         };
