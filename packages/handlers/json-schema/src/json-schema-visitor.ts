@@ -16,7 +16,7 @@ import { join, isAbsolute, dirname } from 'path';
 import { camelCase, flatten, get } from 'lodash';
 import { RegularExpression } from 'graphql-scalars';
 import Ajv from 'ajv';
-import { jsonFlatStringify, readJSONSync } from '@graphql-mesh/utils';
+import { jsonFlatStringify, readJSON } from '@graphql-mesh/utils';
 import { MeshStore, PredefinedProxyOptions } from '@graphql-mesh/store';
 
 const asArray = <T>(maybeArray: T | T[]): T[] => {
@@ -67,7 +67,7 @@ export class JSONSchemaVisitor<TContext> {
       const externalSchemaProxy = this.store.proxy(absolutePath, PredefinedProxyOptions.JsonWithoutValidation);
       let externalSchema = await externalSchemaProxy.get();
       if (!externalSchema) {
-        externalSchema = readJSONSync(absolutePath);
+        externalSchema = await readJSON(absolutePath);
         await externalSchemaProxy.set(externalSchema);
         this.visit({
           def: externalSchema,

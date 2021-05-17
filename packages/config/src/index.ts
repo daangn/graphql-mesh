@@ -26,12 +26,14 @@ import {
 import { stringInterpolator } from '@graphql-mesh/utils';
 import { MergedTypeConfig, MergedFieldConfig } from '@graphql-tools/delegate';
 import { get, set } from 'lodash';
-import { FsStoreStorageAdapter, MeshStore } from '@graphql-mesh/store';
+import { InMemoryStoreStorageAdapter, MeshStore } from '@graphql-mesh/store';
+import { cwd } from 'process';
 
 export type ConfigProcessOptions = {
   dir?: string;
   ignoreAdditionalResolvers?: boolean;
   importFn?: (moduleId: string) => Promise<any>;
+  store?: MeshStore;
 };
 
 // TODO: deprecate this in next major release as dscussed in #1687
@@ -71,18 +73,9 @@ export type ProcessedConfig = {
   config: YamlConfig.Config;
 };
 
-export async function processConfig(
-  config: YamlConfig.Config,
-  options?: ConfigProcessOptions
-): Promise<ProcessedConfig> {
-  const { dir, ignoreAdditionalResolvers = false, importFn = (moduleId: string) => import(moduleId) } = options || {};
-  await Promise.all(config.require?.map(mod => importFn(mod)) || []);
-
-  const cache = await resolveCache(config.cache, importFn);
-  const pubsub = await resolvePubSub(config.pubsub, importFn);
-
-  const storeStorageAdapter = new FsStoreStorageAdapter();
-  const rootStore = new MeshStore(resolve(dir, '.mesh'), storeStorageAdapter, {
+function getInMemoryMeshStore(dir = cwd()) {
+  const storeStorageAdapter = new InMemoryStoreStorageAdapter();
+  return new MeshStore(resolve(dir, '.mesh'), storeStorageAdapter, {
     /**
      * TODO:
      * `mesh start` => { readonly: true, validate: false }
@@ -93,6 +86,27 @@ export async function processConfig(
     readonly: false,
     validate: false,
   });
+}
+
+export async function processConfig(
+  config: YamlConfig.Config,
+  options?: ConfigProcessOptions
+): Promise<ProcessedConfig> {
+  const {
+    dir,
+    ignoreAdditionalResolvers = false,
+    importFn = (moduleId: string) => import(moduleId),
+    store: providedStore,
+  } = options || {};
+
+  await Promise.all(config.require?.map(mod => importFn(mod)) || []);
+
+  const rootStore = providedStore || getInMemoryMeshStore();
+
+  const cache = await resolveCache(config.cache, importFn);
+  const pubsub = await resolvePubSub(config.pubsub, importFn);
+
+  const sourcesStore = rootStore.child('sources');
 
   const [sources, transforms, additionalTypeDefs, additionalResolvers, merger] = await Promise.all([
     Promise.all(
@@ -218,7 +232,7 @@ export async function processConfig(
             baseDir: dir,
             cache,
             pubsub,
-            store: rootStore.child(`source-${source.name}`),
+            store: sourcesStore.child(source.name),
           }),
           transforms,
         };
@@ -312,7 +326,7 @@ export function validateConfig(config: any): asserts config is YamlConfig.Config
 }
 
 export async function findAndParseConfig(options?: { configName?: string } & ConfigProcessOptions) {
-  const { configName = 'mesh', dir: configDir = '', ignoreAdditionalResolvers = false } = options || {};
+  const { configName = 'mesh', dir: configDir = '', ignoreAdditionalResolvers = false, ...restOptions } = options || {};
   const dir = isAbsolute(configDir) ? configDir : join(process.cwd(), configDir);
   const explorer = cosmiconfig(configName, {
     loaders: {
@@ -331,5 +345,5 @@ export async function findAndParseConfig(options?: { configName?: string } & Con
 
   const config = results.config;
   validateConfig(config);
-  return processConfig(config, { dir, ignoreAdditionalResolvers });
+  return processConfig(config, { dir, ignoreAdditionalResolvers, ...restOptions });
 }

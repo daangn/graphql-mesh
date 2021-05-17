@@ -4,12 +4,13 @@ import * as yargs from 'yargs';
 import { generateTsTypes } from './commands/typescript';
 import { generateSdk } from './commands/generate-sdk';
 import { serveMesh } from './commands/serve/serve';
-import { isAbsolute, resolve } from 'path';
+import { isAbsolute, resolve, join } from 'path';
 import { existsSync } from 'fs';
 import { logger } from './logger';
 import { introspectionFromSchema } from 'graphql';
 import { printSchemaWithDirectives } from '@graphql-tools/utils';
 import { jsonFlatStringify, writeFile } from '@graphql-mesh/utils';
+import { FsStoreStorageAdapter, MeshStore } from '@graphql-mesh/store';
 
 export { generateSdk, serveMesh };
 
@@ -44,17 +45,31 @@ export async function graphqlMesh() {
         }
       },
     })
-    .command<{ port: number }>(
+    .command<{ port: number; prod: boolean; validate: boolean }>(
       'serve',
       'Serves a GraphQL server with GraphQL interface to test your Mesh API',
       builder => {
         builder.option('port', {
           type: 'number',
         });
+        builder.option('validate', {
+          type: 'boolean',
+        });
+        builder.option('prod', {
+          type: 'boolean',
+          coerce: value => value || process.env.NODE_ENV?.toLowerCase() === 'production',
+        });
       },
       async args => {
         try {
-          await serveMesh(baseDir, args.port);
+          await serveMesh({
+            baseDir,
+            argsPort: args.port,
+            store: new MeshStore(join(baseDir, '.mesh'), new FsStoreStorageAdapter(), {
+              readonly: args.prod,
+              validate: args.validate,
+            }),
+          });
         } catch (e) {
           logger.error('Unable to serve mesh: ', e);
         }
