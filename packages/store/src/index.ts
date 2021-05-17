@@ -63,7 +63,7 @@ export type StoreProxy<TData> = {
 export type ProxyOptions<TData> = {
   parse: (content: string) => TData;
   serialize: (value: TData) => string;
-  validate: (oldValue: TData, newValue: TData) => void;
+  validate: (oldValue: TData, newValue: TData) => void | Promise<void>;
 };
 
 export type StoreFlags = {
@@ -122,7 +122,7 @@ export class MeshStore {
         if (this.flags.validate) {
           if (value && newValue) {
             try {
-              options.validate(value, newValue);
+              await options.validate(value, newValue);
             } catch (e) {
               throw new ValidationError(`Validation failed for "${id}" under "${this.identifier}"!`, e);
             }

@@ -24,6 +24,7 @@
     "form-urlencoded": "6.0.4",
     "jsonpath-plus": "5.0.7",
     "json-ptr": "2.2.0",
+    "openapi-diff": "0.23.4",
     "graphql-scalars": "1.9.3",
     "graphql-subscriptions": "1.2.1",
     "pluralize": "8.0.0",
