@@ -37,10 +37,6 @@ export interface Config {
    * Live Query Invalidations
    */
   liveQueryInvalidations?: LiveQueryInvalidation[];
-  /**
-   * Path to the file containing the introspection cache
-   */
-  introspectionCache?: string;
 }
 /**
  * Configuration for `mesh serve` command.

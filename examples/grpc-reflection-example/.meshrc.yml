@@ -7,4 +7,3 @@ sources:
 
 serve:
   exampleQuery: example-queries/*.graphql
-introspectionCache: ./introspection-cache.json

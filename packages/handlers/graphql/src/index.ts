@@ -31,11 +31,7 @@ import {
   readFileOrUrlWithCache,
 } from '@graphql-mesh/utils';
 import { ExecutionParams, AsyncExecutor } from '@graphql-tools/delegate';
-
-export interface GraphQLHandlerIntrospection {
-  introspection?: IntrospectionQuery;
-  sdl?: string;
-}
+import { PredefinedProxyOptions, StoreProxy } from '@graphql-mesh/store';
 
 const APOLLO_GET_SERVICE_DEFINITION_QUERY = /* GraphQL */ `
   query __ApolloGetServiceDefinition__ {
@@ -49,18 +45,15 @@ export default class GraphQLHandler implements MeshHandler {
   private config: YamlConfig.GraphQLHandler;
   private baseDir: string;
   private cache: KeyValueCache<any>;
-  private introspectionCache: GraphQLHandlerIntrospection;
+  private introspection: StoreProxy<IntrospectionQuery>;
+  private sdl: StoreProxy<string>;
 
-  constructor({
-    config,
-    baseDir,
-    cache,
-    introspectionCache = {},
-  }: GetMeshSourceOptions<YamlConfig.GraphQLHandler, GraphQLHandlerIntrospection>) {
+  constructor({ config, baseDir, cache, store }: GetMeshSourceOptions<YamlConfig.GraphQLHandler>) {
     this.config = config;
     this.baseDir = baseDir;
     this.cache = cache;
-    this.introspectionCache = introspectionCache;
+    this.introspection = store.proxy<IntrospectionQuery>('schema.json', PredefinedProxyOptions.JsonWithoutValidation);
+    this.sdl = store.proxy<string>('schema.graphql', PredefinedProxyOptions.StringWithoutValidation);
   }
 
   async getMeshSource(): Promise<MeshSource> {
@@ -135,19 +128,21 @@ export default class GraphQLHandler implements MeshHandler {
       const { executor } = await getExecutorAndSubscriberForParams(params, schemaHeadersFactory, () => endpoint);
       return executor(params);
     };
-    if (!this.introspectionCache.introspection) {
+    let introspectionResult = await this.introspection.get();
+    if (!introspectionResult) {
       if (introspection) {
         const result = await urlLoader.handleSDLAsync(introspection, {
           customFetch,
           ...this.config,
           headers: schemaHeaders,
         });
-        this.introspectionCache.introspection = introspectionFromSchema(result.schema);
+        introspectionResult = introspectionFromSchema(result.schema);
       } else {
-        this.introspectionCache.introspection = introspectionFromSchema(await introspectSchema(introspectionExecutor));
+        introspectionResult = introspectionFromSchema(await introspectSchema(introspectionExecutor));
       }
+      await this.introspection.set(introspectionResult);
     }
-    const nonExecutableSchema = buildClientSchema(this.introspectionCache.introspection);
+    const nonExecutableSchema = buildClientSchema(introspectionResult);
     const operationHeadersFactory = getInterpolatedHeadersFactory(this.config.operationHeaders);
     const endpointFactory = getInterpolatedStringFactory(endpoint);
     const queryType = nonExecutableSchema.getQueryType();
@@ -156,14 +151,16 @@ export default class GraphQLHandler implements MeshHandler {
       const _serviceField = queryTypeFieldMap._service;
       if ('resolve' in _serviceField) {
         _serviceField.resolve = async () => {
-          if (!this.introspectionCache.sdl) {
+          let sdl = await this.sdl.get();
+          if (!sdl) {
             const sdlQueryResult = await introspectionExecutor({
               document: parse(APOLLO_GET_SERVICE_DEFINITION_QUERY),
             });
-            this.introspectionCache.sdl = sdlQueryResult?.data?._service?.sdl;
+            sdl = sdlQueryResult?.data?._service?.sdl;
+            await this.sdl.set(sdl);
           }
           return {
-            sdl: this.introspectionCache.sdl,
+            sdl,
           };
         };
       }

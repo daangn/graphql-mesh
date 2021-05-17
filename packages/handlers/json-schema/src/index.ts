@@ -31,36 +31,23 @@ import {
 import { promises as fsPromises } from 'fs';
 import { specifiedDirectives } from 'graphql';
 import { stringify as qsStringify } from 'qs';
+import { MeshStore, PredefinedProxyOptions } from '@graphql-mesh/store';
 
 const { stat } = fsPromises || {};
-
-export interface JsonSchemaIntrospectionCache {
-  externalFileCache: Record<string, any>;
-  schemaCache: Record<string, any>;
-}
 
 export default class JsonSchemaHandler implements MeshHandler {
   public config: YamlConfig.JsonSchemaHandler;
   private baseDir: string;
   public cache: KeyValueCache<any>;
   public pubsub: MeshPubSub;
-  public introspectionCache: JsonSchemaIntrospectionCache;
+  public store: MeshStore;
 
-  constructor({
-    config,
-    baseDir,
-    cache,
-    pubsub,
-    introspectionCache,
-  }: GetMeshSourceOptions<YamlConfig.JsonSchemaHandler, JsonSchemaIntrospectionCache>) {
+  constructor({ config, baseDir, cache, pubsub, store }: GetMeshSourceOptions<YamlConfig.JsonSchemaHandler>) {
     this.config = config;
     this.baseDir = baseDir;
     this.cache = cache;
     this.pubsub = pubsub;
-    this.introspectionCache = introspectionCache || {
-      externalFileCache: null,
-      schemaCache: null,
-    };
+    this.store = store;
   }
 
   public schemaComposer = new SchemaComposer();
@@ -82,19 +69,16 @@ export default class JsonSchemaHandler implements MeshHandler {
     schemaComposer.add(GraphQLIPv4);
     schemaComposer.add(GraphQLIPv6);
 
-    this.introspectionCache.schemaCache = this.introspectionCache.schemaCache || {};
-    this.introspectionCache.externalFileCache = this.introspectionCache.externalFileCache || {};
-    const externalFileCache = this.introspectionCache.externalFileCache;
     const inputSchemaVisitor = new JSONSchemaVisitor(
       schemaComposer,
       true,
-      externalFileCache,
+      this.store,
       this.config.disableTimestampScalar
     );
     const outputSchemaVisitor = new JSONSchemaVisitor(
       schemaComposer,
       false,
-      externalFileCache,
+      this.store,
       this.config.disableTimestampScalar
     );
 
@@ -109,7 +93,8 @@ export default class JsonSchemaHandler implements MeshHandler {
         cwd: this.baseDir,
         headers: this.config.schemaHeaders,
       });
-      externalFileCache[basedFilePath] = baseSchema;
+      const externalFileCache = this.store.proxy(basedFilePath, PredefinedProxyOptions.JsonWithoutValidation);
+      await externalFileCache.set(baseSchema);
       const baseFileName = getFileName(basedFilePath);
       outputSchemaVisitor.visit({
         def: baseSchema as JSONSchemaDefinition,
@@ -160,9 +145,10 @@ export default class JsonSchemaHandler implements MeshHandler {
       operationConfig.type = operationConfig.type || (operationConfig.method === 'GET' ? 'Query' : 'Mutation');
       const basedFilePath = operationConfig.responseSchema || operationConfig.responseSample;
       if (basedFilePath) {
-        externalFileCache[basedFilePath] = responseSchema;
+        const externalFileCache = this.store.proxy(basedFilePath, PredefinedProxyOptions.JsonWithoutValidation);
+        await externalFileCache.set(responseSchema);
         const responseFileName = getFileName(basedFilePath);
-        responseTypeName = outputSchemaVisitor.visit({
+        responseTypeName = await outputSchemaVisitor.visit({
           def: responseSchema as JSONSchemaDefinition,
           propertyName: 'Response',
           prefix: responseFileName,
@@ -186,9 +172,12 @@ export default class JsonSchemaHandler implements MeshHandler {
 
       if (requestSchema) {
         const basedFilePath = operationConfig.requestSchema || operationConfig.requestSample;
-        externalFileCache[basedFilePath] = requestSchema;
+
+        const externalFileCache = this.store.proxy(basedFilePath, PredefinedProxyOptions.JsonWithoutValidation);
+        await externalFileCache.set(requestSchema);
+
         const requestFileName = getFileName(basedFilePath);
-        requestTypeName = inputSchemaVisitor.visit({
+        requestTypeName = await inputSchemaVisitor.visit({
           def: requestSchema as JSONSchemaDefinition,
           propertyName: 'Request',
           prefix: requestFileName,
@@ -329,11 +318,13 @@ export default class JsonSchemaHandler implements MeshHandler {
 
   private async generateJsonSchemaFromSample({ samplePath, schemaPath }: { samplePath: string; schemaPath?: string }) {
     if (!(await this.isGeneratedJSONSchemaValid({ samplePath, schemaPath }))) {
-      if (samplePath in this.introspectionCache.schemaCache) {
-        return this.introspectionCache.schemaCache[samplePath];
+      const schemaProxy = this.store.proxy(samplePath, PredefinedProxyOptions.JsonWithoutValidation);
+      let schema = await schemaProxy.get();
+      if (schema) {
+        return schema;
       }
       const sample = await readFileOrUrlWithCache(samplePath, this.cache, { cwd: this.baseDir });
-      const schema = toJsonSchema(sample, {
+      schema = toJsonSchema(sample, {
         required: false,
         objects: {
           additionalProperties: false,
@@ -347,9 +338,8 @@ export default class JsonSchemaHandler implements MeshHandler {
       });
       if (schemaPath) {
         writeJSON(schemaPath, schema).catch(e => `JSON Schema for ${samplePath} couldn't get cached: ${e.message}`);
-      } else {
-        this.introspectionCache.schemaCache[samplePath] = schema;
       }
+      await schemaProxy.set(schema);
       return schema;
     }
     return null;

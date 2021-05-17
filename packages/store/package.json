@@ -1,0 +1,25 @@
+{
+  "name": "@graphql-mesh/store",
+  "version": "0.0.0",
+  "license": "MIT",
+  "peerDependencies": {
+    "graphql": "*"
+  },
+  "devDependencies": {
+    "@types/is-url": "1.2.29"
+  },
+  "sideEffects": false,
+  "main": "dist/index.cjs.js",
+  "module": "dist/index.esm.js",
+  "typings": "dist/index.d.ts",
+  "typescript": {
+    "definition": "dist/index.d.ts"
+  },
+  "dependencies": {
+    "@graphql-mesh/utils": "0.11.4"
+  },
+  "publishConfig": {
+    "access": "public",
+    "directory": "dist"
+  }
+}

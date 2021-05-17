@@ -22,7 +22,7 @@ import {
 import { OasTitlePathMethodObject } from './openapi-to-graphql/types/options';
 import { GraphQLInputType } from 'graphql-compose/lib/graphql';
 import { GraphQLID } from 'graphql';
-import { PredefinedProxyOptions, StoreProxy } from 'packages/utils/src/mesh-store';
+import { PredefinedProxyOptions, StoreProxy } from '@graphql-mesh/store';
 
 export default class OpenAPIHandler implements MeshHandler {
   private config: YamlConfig.OpenapiHandler;
@@ -180,20 +180,23 @@ export default class OpenAPIHandler implements MeshHandler {
       ...Object.values(schema.getSubscriptionType()?.getFields() || {}),
     ];
 
-    for (const rootField of rootFields) {
-      for (const argName in args) {
-        const { type } = args[argName];
-        rootField.args.push({
-          name: argName,
-          description: undefined,
-          defaultValue: undefined,
-          extensions: undefined,
-          astNode: undefined,
-          deprecationReason: undefined,
-          type: (schema.getType(type) as GraphQLInputType) || GraphQLID,
-        });
-      }
-    }
+    await Promise.all(
+      rootFields.map(rootField =>
+        Promise.all(
+          Object.entries(args).map(async ([argName, { type }]) =>
+            rootField.args.push({
+              name: argName,
+              description: undefined,
+              defaultValue: undefined,
+              extensions: undefined,
+              astNode: undefined,
+              deprecationReason: undefined,
+              type: (schema.getType(type) as GraphQLInputType) || GraphQLID,
+            })
+          )
+        )
+      )
+    );
 
     contextVariables.push('fetch' /*, 'baseUrl' */);
 

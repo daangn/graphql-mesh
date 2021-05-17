@@ -2624,10 +2624,6 @@
       },
       "additionalItems": false,
       "description": "Live Query Invalidations"
-    },
-    "introspectionCache": {
-      "type": "string",
-      "description": "Path to the file containing the introspection cache"
     }
   },
   "additionalProperties": false

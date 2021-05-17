@@ -6,30 +6,20 @@ import { loadTypedefs } from '@graphql-tools/load';
 import { GraphQLFileLoader } from '@graphql-tools/graphql-file-loader';
 import { CodeFileLoader } from '@graphql-tools/code-file-loader';
 import { mergeTypeDefs } from '@graphql-tools/merge';
-import { DocumentNode } from 'graphql';
-
-export interface Neo4JIntrospectionCache {
-  typeDefs: string | DocumentNode;
-}
+import { DocumentNode, parse } from 'graphql';
+import { PredefinedProxyOptions, StoreProxy } from '@graphql-mesh/store';
 
 export default class Neo4JHandler implements MeshHandler {
   private config: YamlConfig.Neo4JHandler;
   private baseDir: string;
   private pubsub: MeshPubSub;
-  private introspectionCache: Neo4JIntrospectionCache;
+  private typeDefs: StoreProxy<DocumentNode>;
 
-  constructor({
-    config,
-    baseDir,
-    pubsub,
-    introspectionCache,
-  }: GetMeshSourceOptions<YamlConfig.Neo4JHandler, Neo4JIntrospectionCache>) {
+  constructor({ config, baseDir, pubsub, store }: GetMeshSourceOptions<YamlConfig.Neo4JHandler>) {
     this.config = config;
     this.baseDir = baseDir;
     this.pubsub = pubsub;
-    this.introspectionCache = introspectionCache || {
-      typeDefs: null,
-    };
+    this.typeDefs = store.proxy('typeDefs.json', PredefinedProxyOptions.JsonWithoutValidation);
   }
 
   private driver: Driver;
@@ -43,7 +33,8 @@ export default class Neo4JHandler implements MeshHandler {
   }
 
   async getCachedTypeDefs() {
-    if (!this.introspectionCache.typeDefs) {
+    let typeDefs = await this.typeDefs.get();
+    if (!typeDefs) {
       if (this.config.typeDefs) {
         const typeDefsArr = await loadTypedefs(this.config.typeDefs, {
           cwd: isAbsolute(this.config.typeDefs) ? null : this.baseDir,
@@ -51,14 +42,18 @@ export default class Neo4JHandler implements MeshHandler {
           assumeValid: true,
           assumeValidSDL: true,
         });
-        this.introspectionCache.typeDefs = mergeTypeDefs(typeDefsArr.map(source => source.document));
+        typeDefs = mergeTypeDefs(typeDefsArr.map(source => source.document));
       } else {
-        this.introspectionCache.typeDefs = await inferSchema(this.getDriver(), {
+        typeDefs = await inferSchema(this.getDriver(), {
           alwaysIncludeRelationships: this.config.alwaysIncludeRelationships,
         });
+        if (typeof typeDefs === 'string') {
+          typeDefs = parse(typeDefs);
+        }
       }
+      await this.typeDefs.set(typeDefs);
     }
-    return this.introspectionCache.typeDefs;
+    return typeDefs;
   }
 
   async getMeshSource() {

@@ -15,10 +15,7 @@ import { join } from 'path';
 import { tmpdir } from 'os';
 import { loadFromModuleExportExpression, readFileOrUrlWithCache, jitExecutorFactory } from '@graphql-mesh/utils';
 import { ExecutionParams } from '@graphql-tools/delegate';
-
-interface PostGraphileIntrospection {
-  pgCache?: any;
-}
+import { PredefinedProxyOptions } from '@graphql-mesh/store';
 
 export default class PostGraphileHandler implements MeshHandler {
   private name: string;
@@ -26,22 +23,15 @@ export default class PostGraphileHandler implements MeshHandler {
   private baseDir: string;
   private cache: KeyValueCache;
   private pubsub: MeshPubSub;
-  private introspectionCache: PostGraphileIntrospection;
+  private pgCache: any;
 
-  constructor({
-    name,
-    config,
-    baseDir,
-    cache,
-    pubsub,
-    introspectionCache = {},
-  }: GetMeshSourceOptions<YamlConfig.PostGraphileHandler, PostGraphileIntrospection>) {
+  constructor({ name, config, baseDir, cache, pubsub, store }: GetMeshSourceOptions<YamlConfig.PostGraphileHandler>) {
     this.name = name;
     this.config = config;
     this.baseDir = baseDir;
     this.cache = cache;
     this.pubsub = pubsub;
-    this.introspectionCache = introspectionCache;
+    this.pgCache = store.proxy('pgCache.json', PredefinedProxyOptions.JsonWithoutValidation);
   }
 
   async getMeshSource(): Promise<MeshSource> {
@@ -63,7 +53,7 @@ export default class PostGraphileHandler implements MeshHandler {
     const cacheKey = this.name + '_introspection';
 
     const dummyCacheFilePath = join(tmpdir(), cacheKey);
-    const cachedIntrospection = this.introspectionCache;
+    let cachedIntrospection = await this.pgCache.get();
 
     let writeCache: () => Promise<void>;
 
@@ -97,10 +87,10 @@ export default class PostGraphileHandler implements MeshHandler {
 
     if (!cachedIntrospection) {
       await writeCache();
-      const writtenCache = await readFileOrUrlWithCache(cacheKey, this.cache, {
+      cachedIntrospection = await readFileOrUrlWithCache(cacheKey, this.cache, {
         cwd: this.baseDir,
       });
-      this.introspectionCache.pgCache = writtenCache;
+      await this.pgCache.set(cachedIntrospection);
     }
 
     const jitExecutor = jitExecutorFactory(schema, this.name);

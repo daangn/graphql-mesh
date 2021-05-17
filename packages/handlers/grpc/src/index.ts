@@ -31,6 +31,7 @@ import {
 } from './utils';
 import { specifiedDirectives } from 'graphql';
 import { join, isAbsolute } from 'path';
+import { PredefinedProxyOptions, StoreProxy } from '@graphql-mesh/store';
 
 // We have to use an ol' fashioned require here :(
 // Needed for descriptor.FileDescriptorSet
@@ -42,37 +43,27 @@ interface LoadOptions extends IParseOptions {
 
 type DecodedDescriptorSet = Message<IFileDescriptorSet> & IFileDescriptorSet;
 
-interface GrpcHandlerIntrospectionCache {
-  rootJson: INamespace;
-  descriptorSetJson: any;
-}
-
 export default class GrpcHandler implements MeshHandler {
   private config: YamlConfig.GrpcHandler;
   private baseDir: string;
   private cache: KeyValueCache;
-  private introspectionCache: GrpcHandlerIntrospectionCache;
+  private rootJson: StoreProxy<INamespace>;
+  private descriptorSetJson: StoreProxy<any>;
 
-  constructor({
-    config,
-    baseDir,
-    cache,
-    introspectionCache,
-  }: GetMeshSourceOptions<YamlConfig.GrpcHandler, GrpcHandlerIntrospectionCache>) {
+  constructor({ config, baseDir, cache, store }: GetMeshSourceOptions<YamlConfig.GrpcHandler>) {
     if (!config) {
       throw new Error('Config not specified!');
     }
     this.config = config;
     this.baseDir = baseDir;
     this.cache = cache;
-    this.introspectionCache = introspectionCache || {
-      rootJson: null,
-      descriptorSetJson: null,
-    };
+    this.rootJson = store.proxy('root.json', PredefinedProxyOptions.JsonWithoutValidation);
+    this.descriptorSetJson = store.proxy('descriptorSet.json', PredefinedProxyOptions.JsonWithoutValidation);
   }
 
   async getCachedRootJson(creds: ChannelCredentials) {
-    if (!this.introspectionCache.rootJson || !this.introspectionCache.descriptorSetJson) {
+    let [rootJson, descriptorSetJson] = await Promise.all([this.rootJson.get(), this.descriptorSetJson.get()]);
+    if (!rootJson || !descriptorSetJson) {
       const root = new Root();
       if (this.config.useReflection) {
         const grpcReflectionServer = this.config.endpoint;
@@ -135,13 +126,17 @@ export default class GrpcHandler implements MeshHandler {
         const protoDefinition = await root.load(fileName, options);
         protoDefinition.resolveAll();
       }
-      this.introspectionCache.rootJson = root.toJSON({
+      rootJson = root.toJSON({
         keepComments: true,
       });
-      this.introspectionCache.descriptorSetJson = root.toDescriptor('proto3').toJSON();
+      descriptorSetJson = root.toDescriptor('proto3').toJSON();
+      await Promise.all([this.rootJson.set(rootJson), this.descriptorSetJson.set(descriptorSetJson)]);
     }
 
-    return this.introspectionCache;
+    return {
+      rootJson,
+      descriptorSetJson,
+    };
   }
 
   async getMeshSource() {

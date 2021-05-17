@@ -1,5 +1,8 @@
-import { existsSync, readFileSync, writeFileSync } from 'fs';
+import { promises as fsPromises } from 'fs';
 import { join } from 'path';
+import { pathExists, writeFile, flatString, jsonFlatStringify } from '@graphql-mesh/utils';
+
+const { readFile } = fsPromises;
 
 export class ReadonlyStoreError extends Error {}
 
@@ -37,18 +40,18 @@ export class InMemoryStoreStorageAdapter implements StoreStorageAdapter {
 
 export class FsStoreStorageAdapter implements StoreStorageAdapter {
   async exists(key: string): Promise<boolean> {
-    return existsSync(key);
+    return pathExists(key);
   }
 
   async read<TData>(key: string, options: ProxyOptions<any>): Promise<TData> {
-    const asString = readFileSync(key, 'utf-8');
+    const asString = await readFile(key, 'utf-8');
 
     return options.parse(asString);
   }
 
   async write<TData>(key: string, data: TData, options: ProxyOptions<any>): Promise<void> {
     const asString = options.serialize(data);
-    writeFileSync(key, asString);
+    return writeFile(key, asString);
   }
 }
 
@@ -68,10 +71,20 @@ export type StoreFlags = {
   validate: boolean;
 };
 
-export const PredefinedProxyOptions: Record<'JsonWithoutValidation', ProxyOptions<any>> = {
+export enum PredefinedProxyOptionsName {
+  JsonWithoutValidation = 'JsonWithoutValidation',
+  StringWithoutValidation = 'StringWithoutValidation',
+}
+
+export const PredefinedProxyOptions: Record<PredefinedProxyOptionsName, ProxyOptions<any>> = {
   JsonWithoutValidation: {
     parse: v => JSON.parse(v),
-    serialize: v => JSON.stringify(v),
+    serialize: v => jsonFlatStringify(v),
+    validate: () => null,
+  },
+  StringWithoutValidation: {
+    parse: v => flatString(v),
+    serialize: v => flatString(v),
     validate: () => null,
   },
 };

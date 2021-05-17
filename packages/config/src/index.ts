@@ -20,19 +20,17 @@ import {
   resolveAdditionalResolvers,
   resolveAdditionalTypeDefs,
   resolveCache,
-  resolveIntrospectionCache,
   resolveMerger,
   resolvePubSub,
 } from './utils';
 import { stringInterpolator } from '@graphql-mesh/utils';
 import { MergedTypeConfig, MergedFieldConfig } from '@graphql-tools/delegate';
 import { get, set } from 'lodash';
-import { FsStoreStorageAdapter, MeshStore } from 'packages/utils/src/mesh-store';
+import { FsStoreStorageAdapter, MeshStore } from '@graphql-mesh/store';
 
 export type ConfigProcessOptions = {
   dir?: string;
   ignoreAdditionalResolvers?: boolean;
-  ignoreIntrospectionCache?: boolean;
   importFn?: (moduleId: string) => Promise<any>;
 };
 
@@ -71,26 +69,17 @@ export type ProcessedConfig = {
   pubsub: MeshPubSub;
   liveQueryInvalidations: YamlConfig.LiveQueryInvalidation[];
   config: YamlConfig.Config;
-  introspectionCache: Record<string, any>;
 };
 
 export async function processConfig(
   config: YamlConfig.Config,
   options?: ConfigProcessOptions
 ): Promise<ProcessedConfig> {
-  const {
-    dir,
-    ignoreAdditionalResolvers = false,
-    importFn = (moduleId: string) => import(moduleId),
-    ignoreIntrospectionCache = false,
-  } = options || {};
+  const { dir, ignoreAdditionalResolvers = false, importFn = (moduleId: string) => import(moduleId) } = options || {};
   await Promise.all(config.require?.map(mod => importFn(mod)) || []);
 
   const cache = await resolveCache(config.cache, importFn);
   const pubsub = await resolvePubSub(config.pubsub, importFn);
-  const introspectionCache = ignoreIntrospectionCache
-    ? {}
-    : await resolveIntrospectionCache(config.introspectionCache, dir);
 
   const storeStorageAdapter = new FsStoreStorageAdapter();
   const rootStore = new MeshStore(resolve(dir, '.mesh'), storeStorageAdapter, {
@@ -134,9 +123,6 @@ export async function processConfig(
         ]);
 
         const HandlerCtor: MeshHandlerLibrary = handlerLibrary;
-
-        introspectionCache[source.name] = introspectionCache[source.name] || {};
-        const handlerIntrospectionCache = introspectionCache[source.name];
 
         const mergedTypeConfigMap: Record<string, MergedTypeConfig> = {};
         for (const mergedTypeConfigRaw of source.typeMerging || []) {
@@ -232,7 +218,6 @@ export async function processConfig(
             baseDir: dir,
             cache,
             pubsub,
-            introspectionCache: handlerIntrospectionCache,
             store: rootStore.child(`source-${source.name}`),
           }),
           transforms,
@@ -278,7 +263,6 @@ export async function processConfig(
     pubsub,
     liveQueryInvalidations: config.liveQueryInvalidations,
     config,
-    introspectionCache,
   };
 }
 
