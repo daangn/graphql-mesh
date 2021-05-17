@@ -6,10 +6,6 @@ import { printSchemaWithDirectives } from '@graphql-tools/utils';
 import { InMemoryStoreStorageAdapter, MeshStore } from '@graphql-mesh/store';
 
 describe('openapi', () => {
-  const store = new MeshStore('openapi', new InMemoryStoreStorageAdapter(), {
-    readonly: false,
-    validate: false,
-  });
   it('should create a GraphQL schema from a simple local swagger file', async () => {
     const handler = new OpenAPIHandler({
       name: 'Instagram',
@@ -18,7 +14,10 @@ describe('openapi', () => {
       },
       pubsub: new PubSub(),
       cache: new InMemoryLRUCache(),
-      store,
+      store: new MeshStore('openapi', new InMemoryStoreStorageAdapter(), {
+        readonly: false,
+        validate: false,
+      }),
     });
     const source = await handler.getMeshSource();
 
@@ -33,7 +32,10 @@ describe('openapi', () => {
       },
       pubsub: new PubSub(),
       cache: new InMemoryLRUCache(),
-      store,
+      store: new MeshStore('openapi', new InMemoryStoreStorageAdapter(), {
+        readonly: false,
+        validate: false,
+      }),
     });
     const source = await handler.getMeshSource();
     expect(
@@ -53,7 +55,10 @@ describe('openapi', () => {
       },
       pubsub: new PubSub(),
       cache: new InMemoryLRUCache(),
-      store,
+      store: new MeshStore('openapi', new InMemoryStoreStorageAdapter(), {
+        readonly: false,
+        validate: false,
+      }),
     });
     const source = await handler.getMeshSource();
     expect(

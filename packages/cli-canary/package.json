@@ -36,9 +36,15 @@
     "oclif"
   ],
   "license": "MIT",
-  "main": "lib/index.js",
+  "sideEffects": false,
+  "main": "dist/index.cjs.js",
+  "module": "dist/index.esm.js",
+  "typings": "dist/index.d.ts",
+  "typescript": {
+    "definition": "dist/index.d.ts"
+  },
   "oclif": {
-    "commands": "./lib/commands",
+    "commands": "./dist/commands",
     "bin": "graphql-mesh",
     "plugins": [
       "@oclif/plugin-help"
@@ -48,9 +54,8 @@
   "scripts": {
     "postpack": "rm -f oclif.manifest.json",
     "posttest": "eslint . --ext .ts --config .eslintrc",
-    "prepack": "rm -rf lib && tsc -b && oclif-dev manifest && oclif-dev readme",
+    "prepack": "rm -rf dist && tsc -b && oclif-dev manifest && oclif-dev readme",
     "test": "echo NO TESTS",
     "version": "oclif-dev readme && git add README.md"
-  },
-  "types": "lib/index.d.ts"
+  }
 }

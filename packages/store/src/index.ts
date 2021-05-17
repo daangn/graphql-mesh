@@ -130,7 +130,7 @@ export class MeshStore {
         }
 
         value = newValue;
-        await this.storage.write(id, value, options);
+        await this.storage.write(path, value, options);
       },
     };
   }

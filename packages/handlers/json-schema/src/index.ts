@@ -5,8 +5,6 @@ import {
   readFileOrUrlWithCache,
   stringInterpolator,
   parseInterpolationStrings,
-  isUrl,
-  pathExists,
   writeJSON,
   jsonFlatStringify,
   getCachedFetch,
@@ -28,12 +26,9 @@ import {
   GraphQLIPv4,
   GraphQLIPv6,
 } from 'graphql-scalars';
-import { promises as fsPromises } from 'fs';
 import { specifiedDirectives } from 'graphql';
 import { stringify as qsStringify } from 'qs';
 import { MeshStore, PredefinedProxyOptions } from '@graphql-mesh/store';
-
-const { stat } = fsPromises || {};
 
 export default class JsonSchemaHandler implements MeshHandler {
   public config: YamlConfig.JsonSchemaHandler;
@@ -306,42 +301,29 @@ export default class JsonSchemaHandler implements MeshHandler {
     };
   }
 
-  private async isGeneratedJSONSchemaValid({ samplePath, schemaPath }: { samplePath: string; schemaPath?: string }) {
-    if (schemaPath || (!isUrl(schemaPath) && (await pathExists(schemaPath)))) {
-      const [schemaFileStat, sampleFileStat] = await Promise.all([stat(schemaPath), stat(samplePath)]);
-      if (schemaFileStat.mtime > sampleFileStat.mtime) {
-        return true;
-      }
-    }
-    return false;
-  }
-
   private async generateJsonSchemaFromSample({ samplePath, schemaPath }: { samplePath: string; schemaPath?: string }) {
-    if (!(await this.isGeneratedJSONSchemaValid({ samplePath, schemaPath }))) {
-      const schemaProxy = this.store.proxy(samplePath, PredefinedProxyOptions.JsonWithoutValidation);
-      let schema = await schemaProxy.get();
-      if (schema) {
-        return schema;
-      }
-      const sample = await readFileOrUrlWithCache(samplePath, this.cache, { cwd: this.baseDir });
-      schema = toJsonSchema(sample, {
-        required: false,
-        objects: {
-          additionalProperties: false,
-        },
-        strings: {
-          detectFormat: true,
-        },
-        arrays: {
-          mode: 'first',
-        },
-      });
-      if (schemaPath) {
-        writeJSON(schemaPath, schema).catch(e => `JSON Schema for ${samplePath} couldn't get cached: ${e.message}`);
-      }
-      await schemaProxy.set(schema);
+    const schemaProxy = this.store.proxy(samplePath, PredefinedProxyOptions.JsonWithoutValidation);
+    let schema = await schemaProxy.get();
+    if (schema) {
       return schema;
     }
-    return null;
+    const sample = await readFileOrUrlWithCache(samplePath, this.cache, { cwd: this.baseDir });
+    schema = toJsonSchema(sample, {
+      required: false,
+      objects: {
+        additionalProperties: false,
+      },
+      strings: {
+        detectFormat: true,
+      },
+      arrays: {
+        mode: 'first',
+      },
+    });
+    if (schemaPath) {
+      writeJSON(schemaPath, schema).catch(e => `JSON Schema for ${samplePath} couldn't get cached: ${e.message}`);
+    }
+    await schemaProxy.set(schema);
+    return schema;
   }
 }

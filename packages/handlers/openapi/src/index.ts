@@ -184,7 +184,7 @@ export default class OpenAPIHandler implements MeshHandler {
       rootFields.map(rootField =>
         Promise.all(
           Object.entries(args).map(async ([argName, { type }]) =>
-            rootField.args.push({
+            rootField?.args.push({
               name: argName,
               description: undefined,
               defaultValue: undefined,
