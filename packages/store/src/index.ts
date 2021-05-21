@@ -1,6 +1,10 @@
 import { promises as fsPromises } from 'fs';
 import { join } from 'path';
 import { pathExists, writeFile, flatString, jsonFlatStringify } from '@graphql-mesh/utils';
+import { Source, buildSchema } from 'graphql';
+import { Change, CriticalityLevel, diff } from '@graphql-inspector/core';
+import AggregateError from '@ardatan/aggregate-error';
+import { printSchemaWithDirectives } from '@graphql-tools/utils';
 
 const { readFile } = fsPromises;
 
@@ -74,6 +78,7 @@ export type StoreFlags = {
 export enum PredefinedProxyOptionsName {
   JsonWithoutValidation = 'JsonWithoutValidation',
   StringWithoutValidation = 'StringWithoutValidation',
+  GraphQLSchemaWithDiffing = 'GraphQLSchemaWithDiffing',
 }
 
 export const PredefinedProxyOptions: Record<PredefinedProxyOptionsName, ProxyOptions<any>> = {
@@ -86,6 +91,29 @@ export const PredefinedProxyOptions: Record<PredefinedProxyOptionsName, ProxyOpt
     parse: v => flatString(v),
     serialize: v => flatString(v),
     validate: () => null,
+  },
+  GraphQLSchemaWithDiffing: {
+    parse: schemaStr =>
+      buildSchema(new Source(schemaStr, 'schema.graphql'), {
+        assumeValid: true,
+        assumeValidSDL: true,
+      }),
+    serialize: schema => printSchemaWithDirectives(schema),
+    validate: (oldSchema, newSchema) => {
+      const changes: Change[] = diff(oldSchema, newSchema);
+      const errors: string[] = [];
+      for (const change of changes) {
+        if (
+          change.criticality.level === CriticalityLevel.Breaking ||
+          change.criticality.level === CriticalityLevel.Dangerous
+        ) {
+          errors.push(change.message);
+        }
+      }
+      if (errors.length) {
+        throw new AggregateError(errors);
+      }
+    },
   },
 };
 

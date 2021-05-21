@@ -6,7 +6,7 @@
     "graphql": "*"
   },
   "devDependencies": {
-    "@types/is-url": "1.2.29"
+    "graphql": "15.5.0"
   },
   "sideEffects": false,
   "main": "dist/index.cjs.js",
@@ -16,7 +16,9 @@
     "definition": "dist/index.d.ts"
   },
   "dependencies": {
-    "@graphql-mesh/utils": "0.11.4"
+    "@graphql-inspector/core": "2.6.0",
+    "@graphql-mesh/utils": "0.11.4",
+    "@graphql-tools/utils": "7.10.0"
   },
   "publishConfig": {
     "access": "public",

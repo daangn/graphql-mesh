@@ -2,24 +2,24 @@ import { isAbsolute } from 'path';
 import { makeAugmentedSchema, inferSchema } from 'neo4j-graphql-js';
 import neo4j, { Driver } from 'neo4j-driver';
 import { YamlConfig, MeshHandler, GetMeshSourceOptions, MeshPubSub } from '@graphql-mesh/types';
-import { loadTypedefs } from '@graphql-tools/load';
+import { loadSchema } from '@graphql-tools/load';
 import { GraphQLFileLoader } from '@graphql-tools/graphql-file-loader';
 import { CodeFileLoader } from '@graphql-tools/code-file-loader';
-import { mergeTypeDefs } from '@graphql-tools/merge';
-import { DocumentNode, parse } from 'graphql';
+import { buildASTSchema, GraphQLSchema, parse } from 'graphql';
 import { PredefinedProxyOptions, StoreProxy } from '@graphql-mesh/store';
+import { getDocumentNodeFromSchema } from '@graphql-tools/utils';
 
 export default class Neo4JHandler implements MeshHandler {
   private config: YamlConfig.Neo4JHandler;
   private baseDir: string;
   private pubsub: MeshPubSub;
-  private typeDefs: StoreProxy<DocumentNode>;
+  private inferredSchema: StoreProxy<GraphQLSchema>;
 
   constructor({ config, baseDir, pubsub, store }: GetMeshSourceOptions<YamlConfig.Neo4JHandler>) {
     this.config = config;
     this.baseDir = baseDir;
     this.pubsub = pubsub;
-    this.typeDefs = store.proxy('typeDefs.json', PredefinedProxyOptions.JsonWithoutValidation);
+    this.inferredSchema = store.proxy('inferredSchema.graphql', PredefinedProxyOptions.GraphQLSchemaWithDiffing);
   }
 
   private driver: Driver;
@@ -33,31 +33,32 @@ export default class Neo4JHandler implements MeshHandler {
   }
 
   async getCachedTypeDefs() {
-    let typeDefs = await this.typeDefs.get();
-    if (!typeDefs) {
+    let inferredSchema = await this.inferredSchema.get();
+    if (!inferredSchema) {
       if (this.config.typeDefs) {
-        const typeDefsArr = await loadTypedefs(this.config.typeDefs, {
+        inferredSchema = await loadSchema(this.config.typeDefs, {
           cwd: isAbsolute(this.config.typeDefs) ? null : this.baseDir,
           loaders: [new CodeFileLoader(), new GraphQLFileLoader()],
           assumeValid: true,
           assumeValidSDL: true,
         });
-        typeDefs = mergeTypeDefs(typeDefsArr.map(source => source.document));
       } else {
-        typeDefs = await inferSchema(this.getDriver(), {
+        let typeDefs = await inferSchema(this.getDriver(), {
           alwaysIncludeRelationships: this.config.alwaysIncludeRelationships,
         });
         if (typeof typeDefs === 'string') {
           typeDefs = parse(typeDefs);
         }
+        inferredSchema = buildASTSchema(typeDefs);
       }
-      await this.typeDefs.set(typeDefs);
+      await this.inferredSchema.set(inferredSchema);
     }
-    return typeDefs;
+    return inferredSchema;
   }
 
   async getMeshSource() {
-    const typeDefs: DocumentNode | string = await this.getCachedTypeDefs();
+    const inferredSchema = await this.getCachedTypeDefs();
+    const typeDefs = getDocumentNodeFromSchema(inferredSchema);
 
     const schema = makeAugmentedSchema({ typeDefs, config: { experimental: true } });
 

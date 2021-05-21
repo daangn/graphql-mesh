@@ -9,10 +9,7 @@ import {
 import { UrlLoader } from '@graphql-tools/url-loader';
 import {
   GraphQLSchema,
-  buildClientSchema,
-  introspectionFromSchema,
   buildSchema,
-  IntrospectionQuery,
   parse,
   execute,
   GraphQLResolveInfo,
@@ -32,6 +29,7 @@ import {
 } from '@graphql-mesh/utils';
 import { ExecutionParams, AsyncExecutor } from '@graphql-tools/delegate';
 import { PredefinedProxyOptions, StoreProxy } from '@graphql-mesh/store';
+import { printSchemaWithDirectives } from '@graphql-tools/utils';
 
 const APOLLO_GET_SERVICE_DEFINITION_QUERY = /* GraphQL */ `
   query __ApolloGetServiceDefinition__ {
@@ -45,15 +43,15 @@ export default class GraphQLHandler implements MeshHandler {
   private config: YamlConfig.GraphQLHandler;
   private baseDir: string;
   private cache: KeyValueCache<any>;
-  private introspection: StoreProxy<IntrospectionQuery>;
-  private sdl: StoreProxy<string>;
+  private introspection: StoreProxy<GraphQLSchema>;
+  private apolloServiceSdl: StoreProxy<GraphQLSchema>;
 
   constructor({ config, baseDir, cache, store }: GetMeshSourceOptions<YamlConfig.GraphQLHandler>) {
     this.config = config;
     this.baseDir = baseDir;
     this.cache = cache;
-    this.introspection = store.proxy<IntrospectionQuery>('schema.json', PredefinedProxyOptions.JsonWithoutValidation);
-    this.sdl = store.proxy<string>('schema.graphql', PredefinedProxyOptions.StringWithoutValidation);
+    this.introspection = store.proxy('introspection.graphql', PredefinedProxyOptions.GraphQLSchemaWithDiffing);
+    this.apolloServiceSdl = store.proxy('apolloService.graphql', PredefinedProxyOptions.GraphQLSchemaWithDiffing);
   }
 
   async getMeshSource(): Promise<MeshSource> {
@@ -128,21 +126,20 @@ export default class GraphQLHandler implements MeshHandler {
       const { executor } = await getExecutorAndSubscriberForParams(params, schemaHeadersFactory, () => endpoint);
       return executor(params);
     };
-    let introspectionResult = await this.introspection.get();
-    if (!introspectionResult) {
+    let nonExecutableSchema = await this.introspection.get();
+    if (!nonExecutableSchema) {
       if (introspection) {
         const result = await urlLoader.handleSDLAsync(introspection, {
           customFetch,
           ...this.config,
           headers: schemaHeaders,
         });
-        introspectionResult = introspectionFromSchema(result.schema);
+        nonExecutableSchema = result.schema;
       } else {
-        introspectionResult = introspectionFromSchema(await introspectSchema(introspectionExecutor));
+        nonExecutableSchema = await introspectSchema(introspectionExecutor);
       }
-      await this.introspection.set(introspectionResult);
+      await this.introspection.set(nonExecutableSchema);
     }
-    const nonExecutableSchema = buildClientSchema(introspectionResult);
     const operationHeadersFactory = getInterpolatedHeadersFactory(this.config.operationHeaders);
     const endpointFactory = getInterpolatedStringFactory(endpoint);
     const queryType = nonExecutableSchema.getQueryType();
@@ -151,16 +148,19 @@ export default class GraphQLHandler implements MeshHandler {
       const _serviceField = queryTypeFieldMap._service;
       if ('resolve' in _serviceField) {
         _serviceField.resolve = async () => {
-          let sdl = await this.sdl.get();
-          if (!sdl) {
+          let apolloServiceSdl = await this.apolloServiceSdl.get();
+          if (!apolloServiceSdl) {
             const sdlQueryResult = await introspectionExecutor({
               document: parse(APOLLO_GET_SERVICE_DEFINITION_QUERY),
             });
-            sdl = sdlQueryResult?.data?._service?.sdl;
-            await this.sdl.set(sdl);
+            apolloServiceSdl = buildSchema(sdlQueryResult?.data?._service?.sdl, {
+              assumeValid: true,
+              assumeValidSDL: true,
+            });
+            await this.apolloServiceSdl.set(apolloServiceSdl);
           }
           return {
-            sdl,
+            sdl: printSchemaWithDirectives(apolloServiceSdl),
           };
         };
       }
