@@ -12,6 +12,7 @@ import { PubSub, withFilter } from 'graphql-subscriptions';
 import { EventEmitter } from 'events';
 import { CodeFileLoader } from '@graphql-tools/code-file-loader';
 import StitchingMerger from '@graphql-mesh/merger-stitching';
+import { MeshStore } from '@graphql-mesh/store';
 
 export async function getPackage<T>(name: string, type: string, importFn: ImportFn): Promise<T> {
   const casedName = paramCase(name);
@@ -158,7 +159,8 @@ export async function resolveAdditionalResolvers(
 
 export async function resolveCache(
   cacheConfig: YamlConfig.Config['cache'],
-  importFn: ImportFn
+  importFn: ImportFn,
+  store: MeshStore
 ): Promise<KeyValueCache | undefined> {
   if (cacheConfig) {
     const cacheName = Object.keys(cacheConfig)[0];
@@ -170,8 +172,12 @@ export async function resolveCache(
 
     return new Cache(config);
   }
-  const InMemoryLRUCache = await import('@graphql-mesh/cache-inmemory-lru').then(m => m.default);
-  const cache = new InMemoryLRUCache();
+  const StoreCache = await import('@graphql-mesh/cache-store').then(m => m.default);
+  const cache = new StoreCache(
+    store.child('cache', {
+      readonly: false,
+    })
+  );
   return cache;
 }
 

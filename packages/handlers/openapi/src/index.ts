@@ -25,6 +25,7 @@ import { GraphQLInputType } from 'graphql-compose/lib/graphql';
 import { GraphQLID } from 'graphql';
 import { PredefinedProxyOptions, StoreProxy } from '@graphql-mesh/store';
 import openapiDiff from 'openapi-diff';
+import { getValidOAS3 } from './openapi-to-graphql/oas_3_tools';
 
 export default class OpenAPIHandler implements MeshHandler {
   private config: YamlConfig.OpenapiHandler;
@@ -63,25 +64,22 @@ export default class OpenAPIHandler implements MeshHandler {
     });
   }
 
-  private async getCachedSpec(fetch: WindowOrWorkerGlobalScope['fetch']): Promise<Oas3> {
+  private getCachedSpec(fetch: WindowOrWorkerGlobalScope['fetch']): Promise<Oas3> {
     const { source } = this.config;
-    let value = await this.oasSchema.get();
-
-    if (!value) {
-      value =
-        typeof source !== 'string'
-          ? source
-          : await readFileOrUrlWithCache<Oas3>(source, this.cache, {
-              cwd: this.baseDir,
-              fallbackFormat: this.config.sourceFormat,
-              headers: this.config.schemaHeaders,
-              fetch,
-            });
-
-      await this.oasSchema.set(value);
-    }
-
-    return value;
+    return this.oasSchema.getWithSet(async () => {
+      let spec: any;
+      if (typeof source !== 'string') {
+        spec = source;
+      } else {
+        spec = await readFileOrUrlWithCache<Oas3>(source, this.cache, {
+          cwd: this.baseDir,
+          fallbackFormat: this.config.sourceFormat,
+          headers: this.config.schemaHeaders,
+          fetch,
+        });
+      }
+      return getValidOAS3(spec);
+    });
   }
 
   async getMeshSource(): Promise<MeshSource> {

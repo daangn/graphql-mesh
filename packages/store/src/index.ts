@@ -6,20 +6,17 @@ import { Change, CriticalityLevel, diff } from '@graphql-inspector/core';
 import AggregateError from '@ardatan/aggregate-error';
 import { printSchemaWithDirectives } from '@graphql-tools/utils';
 
-const { readFile } = fsPromises;
+const { readFile, unlink } = fsPromises;
 
 export class ReadonlyStoreError extends Error {}
 
-export class ValidationError extends Error {
-  constructor(message: string, public originalError: Error) {
-    super(message);
-  }
-}
+export class ValidationError extends Error {}
 
 export type StoreStorageAdapter<TData = any, TKey = string> = {
   exists: (key: TKey) => Promise<boolean>;
   read: (key: TKey, options: ProxyOptions<TData>) => Promise<TData>;
   write: (key: TKey, data: TData, options: ProxyOptions<TData>) => Promise<TData>;
+  delete: (key: TKey) => Promise<void>;
 };
 
 export class InMemoryStoreStorageAdapter implements StoreStorageAdapter {
@@ -35,6 +32,10 @@ export class InMemoryStoreStorageAdapter implements StoreStorageAdapter {
 
   async write<TData>(key: string, data: TData, options: ProxyOptions<any>): Promise<void> {
     this.data.set(key, data);
+  }
+
+  async delete(key: string) {
+    this.data.delete(key);
   }
 
   clear() {
@@ -57,11 +58,17 @@ export class FsStoreStorageAdapter implements StoreStorageAdapter {
     const asString = options.serialize(data);
     return writeFile(key, asString);
   }
+
+  async delete(key: string): Promise<void> {
+    return unlink(key);
+  }
 }
 
 export type StoreProxy<TData> = {
   set(value: TData): Promise<void>;
   get(): Promise<TData>;
+  getWithSet(setterFn: () => TData | Promise<TData>): Promise<TData>;
+  delete(): Promise<void>;
 };
 
 export type ProxyOptions<TData> = {
@@ -120,25 +127,56 @@ export const PredefinedProxyOptions: Record<PredefinedProxyOptionsName, ProxyOpt
 export class MeshStore {
   constructor(public identifier: string, protected storage: StoreStorageAdapter, public flags: StoreFlags) {}
 
-  child(childIdentifier: string): MeshStore {
-    return new MeshStore(join(this.identifier, childIdentifier), this.storage, this.flags);
+  child(childIdentifier: string, flags?: Partial<StoreFlags>): MeshStore {
+    return new MeshStore(join(this.identifier, childIdentifier), this.storage, {
+      ...this.flags,
+      ...flags,
+    });
   }
 
   proxy<TData>(id: string, options: ProxyOptions<TData>): StoreProxy<TData> {
     const path = join(this.identifier, id);
     let value: TData | null | undefined;
+    let isValueCached = false;
 
-    return {
+    const ensureValueCached = async () => {
+      if (!isValueCached) {
+        if (await this.storage.exists(path)) {
+          value = await this.storage.read(path, options);
+        }
+        isValueCached = true;
+      }
+    };
+
+    const doValidation = async (newValue: TData) => {
+      await ensureValueCached();
+      if (value && newValue) {
+        try {
+          await options.validate(value, newValue);
+        } catch (e) {
+          throw new ValidationError(`Validation failed for "${id}" under "${this.identifier}": ${e.message}`);
+        }
+      }
+    };
+
+    const proxy: StoreProxy<TData> = {
+      getWithSet: async (setterFn: () => TData | Promise<TData>) => {
+        await ensureValueCached();
+        if (this.flags.validate || !value) {
+          const newValue = await setterFn();
+          if (this.flags.validate && this.flags.readonly) {
+            await doValidation(newValue);
+          }
+          if (!this.flags.readonly) {
+            await proxy.set(newValue);
+          }
+        }
+        return value;
+      },
       get: async () => {
-        if (typeof value !== 'undefined') {
-          return value;
-        }
+        await ensureValueCached();
 
-        if (!(await this.storage.exists(path))) {
-          return undefined;
-        }
-
-        return this.storage.read(path, options);
+        return value;
       },
       set: async newValue => {
         if (this.flags.readonly) {
@@ -148,18 +186,16 @@ export class MeshStore {
         }
 
         if (this.flags.validate) {
-          if (value && newValue) {
-            try {
-              await options.validate(value, newValue);
-            } catch (e) {
-              throw new ValidationError(`Validation failed for "${id}" under "${this.identifier}"!`, e);
-            }
-          }
+          await doValidation(newValue);
         }
 
         value = newValue;
+        isValueCached = true;
         await this.storage.write(path, value, options);
       },
+      delete: () => this.storage.delete(path),
     };
+
+    return proxy;
   }
 }

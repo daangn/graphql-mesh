@@ -43,12 +43,16 @@ interface LoadOptions extends IParseOptions {
 
 type DecodedDescriptorSet = Message<IFileDescriptorSet> & IFileDescriptorSet;
 
+type RootAndDescriptorJson = {
+  rootJson: INamespace;
+  descriptorSetJson: any;
+};
+
 export default class GrpcHandler implements MeshHandler {
   private config: YamlConfig.GrpcHandler;
   private baseDir: string;
   private cache: KeyValueCache;
-  private rootJson: StoreProxy<INamespace>;
-  private descriptorSetJson: StoreProxy<any>;
+  private rootAndDescriptorSetJson: StoreProxy<RootAndDescriptorJson>;
 
   constructor({ config, baseDir, cache, store }: GetMeshSourceOptions<YamlConfig.GrpcHandler>) {
     if (!config) {
@@ -57,13 +61,11 @@ export default class GrpcHandler implements MeshHandler {
     this.config = config;
     this.baseDir = baseDir;
     this.cache = cache;
-    this.rootJson = store.proxy('root.json', PredefinedProxyOptions.JsonWithoutValidation);
-    this.descriptorSetJson = store.proxy('descriptorSet.json', PredefinedProxyOptions.JsonWithoutValidation);
+    this.rootAndDescriptorSetJson = store.proxy('rootAndDescriptor.json', PredefinedProxyOptions.JsonWithoutValidation);
   }
 
-  async getCachedRootJson(creds: ChannelCredentials) {
-    let [rootJson, descriptorSetJson] = await Promise.all([this.rootJson.get(), this.descriptorSetJson.get()]);
-    if (!rootJson || !descriptorSetJson) {
+  getCachedRootJson(creds: ChannelCredentials) {
+    return this.rootAndDescriptorSetJson.getWithSet(async () => {
       const root = new Root();
       if (this.config.useReflection) {
         const grpcReflectionServer = this.config.endpoint;
@@ -126,17 +128,13 @@ export default class GrpcHandler implements MeshHandler {
         const protoDefinition = await root.load(fileName, options);
         protoDefinition.resolveAll();
       }
-      rootJson = root.toJSON({
-        keepComments: true,
-      });
-      descriptorSetJson = root.toDescriptor('proto3').toJSON();
-      await Promise.all([this.rootJson.set(rootJson), this.descriptorSetJson.set(descriptorSetJson)]);
-    }
-
-    return {
-      rootJson,
-      descriptorSetJson,
-    };
+      return {
+        rootJson: root.toJSON({
+          keepComments: true,
+        }),
+        descriptorSetJson: root.toDescriptor('proto3').toJSON(),
+      };
+    });
   }
 
   async getMeshSource() {

@@ -133,8 +133,7 @@ export default class ODataHandler implements MeshHandler {
   }
 
   async getCachedMetadataJson(fetch: ReturnType<typeof getCachedFetch>) {
-    let metadataJson = await this.metadataJson.get();
-    if (!metadataJson) {
+    return this.metadataJson.getWithSet(async () => {
       const metadataUrl = urljoin(this.config.baseUrl, '$metadata');
       const metadataText = await readFileOrUrlWithCache<string>(this.config.metadata || metadataUrl, this.cache, {
         allowUnknownExtensions: true,
@@ -143,7 +142,7 @@ export default class ODataHandler implements MeshHandler {
         fetch,
       });
 
-      metadataJson = parseXML(metadataText, {
+      return parseXML(metadataText, {
         attributeNamePrefix: '',
         attrNodeName: 'attributes',
         textNodeName: 'innerText',
@@ -152,9 +151,7 @@ export default class ODataHandler implements MeshHandler {
         arrayMode: true,
         allowBooleanAttributes: true,
       });
-      await this.metadataJson.set(metadataJson);
-    }
-    return metadataJson;
+    });
   }
 
   async getMeshSource(): Promise<MeshSource> {

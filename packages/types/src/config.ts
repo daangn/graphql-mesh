@@ -37,6 +37,13 @@ export interface Config {
    * Live Query Invalidations
    */
   liveQueryInvalidations?: LiveQueryInvalidation[];
+  /**
+   * Provide a query or queries for GraphQL Playground, validation and SDK Generation
+   * The value can be the file path, glob expression for the file paths or the SDL.
+   * (.js, .jsx, .graphql, .gql, .ts and .tsx files are supported.
+   * But TypeScript support is only available if `ts-node` is installed and `ts-node/register` is added under `require` parameter)
+   */
+  operations?: string[];
 }
 /**
  * Configuration for `mesh serve` command.

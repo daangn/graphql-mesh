@@ -32,11 +32,10 @@ export default class Neo4JHandler implements MeshHandler {
     return this.driver;
   }
 
-  async getCachedTypeDefs() {
-    let inferredSchema = await this.inferredSchema.get();
-    if (!inferredSchema) {
+  getCachedTypeDefs() {
+    return this.inferredSchema.getWithSet(async () => {
       if (this.config.typeDefs) {
-        inferredSchema = await loadSchema(this.config.typeDefs, {
+        return loadSchema(this.config.typeDefs, {
           cwd: isAbsolute(this.config.typeDefs) ? null : this.baseDir,
           loaders: [new CodeFileLoader(), new GraphQLFileLoader()],
           assumeValid: true,
@@ -49,11 +48,9 @@ export default class Neo4JHandler implements MeshHandler {
         if (typeof typeDefs === 'string') {
           typeDefs = parse(typeDefs);
         }
-        inferredSchema = buildASTSchema(typeDefs);
+        return buildASTSchema(typeDefs);
       }
-      await this.inferredSchema.set(inferredSchema);
-    }
-    return inferredSchema;
+    });
   }
 
   async getMeshSource() {

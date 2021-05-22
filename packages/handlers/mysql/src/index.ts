@@ -145,13 +145,11 @@ export default class MySQLHandler implements MeshHandler {
         return async (...args: any[]) => {
           const cacheKey = [methodName, ...args].join('_');
           const cacheProxy = this.store.proxy(cacheKey, PredefinedProxyOptions.JsonWithoutValidation);
-          let data = await cacheProxy.get();
-          if (!data) {
+          return cacheProxy.getWithSet(async () => {
             promisifiedConnection$ = promisifiedConnection$ || this.getPromisifiedConnection(pool);
             const promisifiedConnection = await promisifiedConnection$;
-            data = await promisifiedConnection[methodName](...args);
-          }
-          return data;
+            return promisifiedConnection[methodName](...args);
+          });
         };
       },
     });

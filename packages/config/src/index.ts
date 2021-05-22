@@ -103,7 +103,7 @@ export async function processConfig(
 
   const rootStore = providedStore || getInMemoryMeshStore();
 
-  const cache = await resolveCache(config.cache, importFn);
+  const cache = await resolveCache(config.cache, importFn, rootStore);
   const pubsub = await resolvePubSub(config.pubsub, importFn);
 
   const sourcesStore = rootStore.child('sources');

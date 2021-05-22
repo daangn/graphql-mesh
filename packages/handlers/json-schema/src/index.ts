@@ -28,7 +28,21 @@ import {
 } from 'graphql-scalars';
 import { specifiedDirectives } from 'graphql';
 import { stringify as qsStringify } from 'qs';
-import { MeshStore, PredefinedProxyOptions } from '@graphql-mesh/store';
+import { MeshStore, PredefinedProxyOptions, ProxyOptions } from '@graphql-mesh/store';
+import { diffSchemas } from 'json-schema-diff';
+
+export const JsonSchemaWithDiff: ProxyOptions<JSONSchemaDefinition> = {
+  ...PredefinedProxyOptions.JsonWithoutValidation,
+  validate: async (oldJsonSchema, newJsonSchema) => {
+    const result = await diffSchemas({
+      sourceSchema: oldJsonSchema as any,
+      destinationSchema: newJsonSchema as any,
+    });
+    if (result.removalsFound) {
+      throw new Error(`Breaking changes found in the new schema. ${JSON.stringify(result.removedJsonSchema)}`);
+    }
+  },
+};
 
 export default class JsonSchemaHandler implements MeshHandler {
   public config: YamlConfig.JsonSchemaHandler;
@@ -84,12 +98,13 @@ export default class JsonSchemaHandler implements MeshHandler {
 
     if (this.config.baseSchema) {
       const basedFilePath = this.config.baseSchema;
-      const baseSchema = await readFileOrUrlWithCache(basedFilePath, this.cache, {
-        cwd: this.baseDir,
-        headers: this.config.schemaHeaders,
-      });
       const externalFileCache = this.store.proxy(basedFilePath, PredefinedProxyOptions.JsonWithoutValidation);
-      await externalFileCache.set(baseSchema);
+      const baseSchema = await externalFileCache.getWithSet(() =>
+        readFileOrUrlWithCache(basedFilePath, this.cache, {
+          cwd: this.baseDir,
+          headers: this.config.schemaHeaders,
+        })
+      );
       const baseFileName = getFileName(basedFilePath);
       outputSchemaVisitor.visit({
         def: baseSchema as JSONSchemaDefinition,

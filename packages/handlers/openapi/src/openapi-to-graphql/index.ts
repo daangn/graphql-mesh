@@ -108,22 +108,13 @@ export async function createGraphQLSchema<TSource, TContext, TArgs>(
 
   let oass: Oas3[];
 
-  if (Array.isArray(spec)) {
-    /**
-     * Convert all non-OAS 3.0.x into OAS 3.0.x
-     */
-    oass = await Promise.all(
-      spec.map(ele => {
-        return Oas3Tools.getValidOAS3(ele);
-      })
-    );
-  } else {
+  if (!Array.isArray(spec)) {
     /**
      * Check if the spec is a valid OAS 3.0.x
      * If the spec is OAS 2.0, attempt to translate it into 3.0.x, then try to
      * translate the spec into a GraphQL schema
      */
-    oass = [await Oas3Tools.getValidOAS3(spec)];
+    oass = [spec as any];
   }
 
   const { schema, report } = await translateOpenAPIToGraphQL(

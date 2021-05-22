@@ -126,20 +126,18 @@ export default class GraphQLHandler implements MeshHandler {
       const { executor } = await getExecutorAndSubscriberForParams(params, schemaHeadersFactory, () => endpoint);
       return executor(params);
     };
-    let nonExecutableSchema = await this.introspection.get();
-    if (!nonExecutableSchema) {
+    const nonExecutableSchema = await this.introspection.getWithSet(async () => {
       if (introspection) {
         const result = await urlLoader.handleSDLAsync(introspection, {
           customFetch,
           ...this.config,
           headers: schemaHeaders,
         });
-        nonExecutableSchema = result.schema;
+        return result.schema;
       } else {
-        nonExecutableSchema = await introspectSchema(introspectionExecutor);
+        return introspectSchema(introspectionExecutor);
       }
-      await this.introspection.set(nonExecutableSchema);
-    }
+    });
     const operationHeadersFactory = getInterpolatedHeadersFactory(this.config.operationHeaders);
     const endpointFactory = getInterpolatedStringFactory(endpoint);
     const queryType = nonExecutableSchema.getQueryType();
@@ -148,17 +146,15 @@ export default class GraphQLHandler implements MeshHandler {
       const _serviceField = queryTypeFieldMap._service;
       if ('resolve' in _serviceField) {
         _serviceField.resolve = async () => {
-          let apolloServiceSdl = await this.apolloServiceSdl.get();
-          if (!apolloServiceSdl) {
+          const apolloServiceSdl = await this.apolloServiceSdl.getWithSet(async () => {
             const sdlQueryResult = await introspectionExecutor({
               document: parse(APOLLO_GET_SERVICE_DEFINITION_QUERY),
             });
-            apolloServiceSdl = buildSchema(sdlQueryResult?.data?._service?.sdl, {
+            return buildSchema(sdlQueryResult?.data?._service?.sdl, {
               assumeValid: true,
               assumeValidSDL: true,
             });
-            await this.apolloServiceSdl.set(apolloServiceSdl);
-          }
+          });
           return {
             sdl: printSchemaWithDirectives(apolloServiceSdl),
           };
