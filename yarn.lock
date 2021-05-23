@@ -3397,6 +3397,45 @@
   resolved "https://registry.yarnpkg.com/@jsdevtools/ono/-/ono-7.1.3.tgz#9df03bbd7c696a5c58885c34aa06da41c8543796"
   integrity sha512-4JQNk+3mVzK3xh2rqd6RB4J46qUR19azEHBneZyTZM+c456qOrbbM/5xcR8huNCCcbVt7+UmizG6GuUvPvKUYg==
 
+"@json-schema-spec/json-pointer@^0.1.2":
+  version "0.1.2"
+  resolved "https://registry.yarnpkg.com/@json-schema-spec/json-pointer/-/json-pointer-0.1.2.tgz#5153d5d01b94134015ee829deca5a970cf0406fd"
+  integrity sha512-BYY7IavBjwsWWSmVcMz2A9mKiDD9RvacnsItgmy1xV8cmgbtxFfKmKMtkVpD7pYtkx4mIW4800yZBXueVFIWPw==
+
+"@json-schema-tools/dereferencer@1.5.1":
+  version "1.5.1"
+  resolved "https://registry.yarnpkg.com/@json-schema-tools/dereferencer/-/dereferencer-1.5.1.tgz#cea5c6dfc92ef7e249969b0f8ccf76997387a708"
+  integrity sha512-CUpdGpxNTq1ebMkrgVxS03FHfwkGiw63c+GNzqFAqwqsxR0OsR79aqK8h2ybxTIEhdwiaknSnlUgtUIy7FJ+3A==
+  dependencies:
+    "@json-schema-tools/reference-resolver" "^1.2.1"
+    "@json-schema-tools/traverse" "^1.7.5"
+    fast-safe-stringify "^2.0.7"
+
+"@json-schema-tools/meta-schema@1.6.1":
+  version "1.6.1"
+  resolved "https://registry.yarnpkg.com/@json-schema-tools/meta-schema/-/meta-schema-1.6.1.tgz#7483a7fbad5a45367844ceaac3c413ffea56dcec"
+  integrity sha512-GPNTio0DpH/5Cqiol7Q7eLWXd1psvUL9Wje7HUubF/uvTqaEo2W2YF/37bt2umCgitos4bp+iEWoI8IV9A2TmA==
+
+"@json-schema-tools/reference-resolver@^1.2.1":
+  version "1.2.1"
+  resolved "https://registry.yarnpkg.com/@json-schema-tools/reference-resolver/-/reference-resolver-1.2.1.tgz#6e054b324bf29001ac04dbcc0346e432a30e13cf"
+  integrity sha512-zsiV4GPjLJ6qhWRytSdEWfENy+ycCgE5Uu62IL0E8vSviohOAMIpAuFf15ByNvlj6U8M/pFg0OfPWy7R8+vWWA==
+  dependencies:
+    "@json-schema-spec/json-pointer" "^0.1.2"
+    isomorphic-fetch "^3.0.0"
+
+"@json-schema-tools/titleizer@1.0.4":
+  version "1.0.4"
+  resolved "https://registry.yarnpkg.com/@json-schema-tools/titleizer/-/titleizer-1.0.4.tgz#df4bd37cfc2963c6091028b96c3b885055ed4a49"
+  integrity sha512-3VQDsTBxnnJ/9PDJ8sFdYDqzMo2QowNEH2wIa886n3IsGiFpozaCg8+ZHGu43O4iKJKqLh9dCnoxHBeJLb+ntA==
+  dependencies:
+    "@json-schema-tools/traverse" "^1.7.3"
+
+"@json-schema-tools/traverse@1.7.7", "@json-schema-tools/traverse@^1.7.3", "@json-schema-tools/traverse@^1.7.5":
+  version "1.7.7"
+  resolved "https://registry.yarnpkg.com/@json-schema-tools/traverse/-/traverse-1.7.7.tgz#1b5ec2854fec23a5ac3ff04d459c2ac11bcf2df2"
+  integrity sha512-ch/pPoOEIeKe1PKbfuLEIM8MAdTiR+fr9BYk6VTlIHrya5f5d8shJg6h/oQgD3K/ftjU/RYBGGalw9Pz4pCXew==
+
 "@manypkg/find-root@^1.1.0":
   version "1.1.0"
   resolved "https://registry.yarnpkg.com/@manypkg/find-root/-/find-root-1.1.0.tgz#a62d8ed1cd7e7d4c11d9d52a8397460b5d4ad29f"

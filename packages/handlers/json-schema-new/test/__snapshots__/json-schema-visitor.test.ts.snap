@@ -1,0 +1,197 @@
+// Jest Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`visitor should do something 1`] = `
+Object {
+  "definitions": Object {
+    "app": Object {
+      "definitions": Object {
+        "domains": Object {
+          "items": Object {
+            "definitions": Object {
+              "name": Object {
+                "format": "hostname",
+                "type": "string",
+              },
+            },
+            "properties": Object {
+              "name": Object {
+                "format": "hostname",
+                "type": "string",
+              },
+            },
+            "required": Array [
+              "name",
+            ],
+            "type": "object",
+          },
+          "type": "array",
+        },
+        "name": Object {
+          "pattern": "^[a-z][a-z0-9-]{2,30}$",
+          "type": "string",
+        },
+      },
+      "properties": Object {
+        "domains": Object {
+          "items": Object {
+            "definitions": Object {
+              "name": Object {
+                "format": "hostname",
+                "type": "string",
+              },
+            },
+            "properties": Object {
+              "name": Object {
+                "format": "hostname",
+                "type": "string",
+              },
+            },
+            "required": Array [
+              "name",
+            ],
+            "type": "object",
+          },
+          "type": "array",
+        },
+        "name": Object {
+          "pattern": "^[a-z][a-z0-9-]{2,30}$",
+          "type": "string",
+        },
+      },
+      "required": Array [
+        "name",
+      ],
+      "type": "object",
+    },
+    "domain": Object {
+      "definitions": Object {
+        "name": Object {
+          "format": "hostname",
+          "type": "string",
+        },
+      },
+      "properties": Object {
+        "name": Object {
+          "format": "hostname",
+          "type": "string",
+        },
+      },
+      "required": Array [
+        "name",
+      ],
+      "type": "object",
+    },
+  },
+  "properties": Object {
+    "app": Object {
+      "definitions": Object {
+        "domains": Object {
+          "items": Object {
+            "definitions": Object {
+              "name": Object {
+                "format": "hostname",
+                "type": "string",
+              },
+            },
+            "properties": Object {
+              "name": Object {
+                "format": "hostname",
+                "type": "string",
+              },
+            },
+            "required": Array [
+              "name",
+            ],
+            "type": "object",
+          },
+          "type": "array",
+        },
+        "name": Object {
+          "pattern": "^[a-z][a-z0-9-]{2,30}$",
+          "type": "string",
+        },
+      },
+      "properties": Object {
+        "domains": Object {
+          "items": Object {
+            "definitions": Object {
+              "name": Object {
+                "format": "hostname",
+                "type": "string",
+              },
+            },
+            "properties": Object {
+              "name": Object {
+                "format": "hostname",
+                "type": "string",
+              },
+            },
+            "required": Array [
+              "name",
+            ],
+            "type": "object",
+          },
+          "type": "array",
+        },
+        "name": Object {
+          "pattern": "^[a-z][a-z0-9-]{2,30}$",
+          "type": "string",
+        },
+      },
+      "required": Array [
+        "name",
+      ],
+      "type": "object",
+    },
+    "domain": Object {
+      "definitions": Object {
+        "name": Object {
+          "format": "hostname",
+          "type": "string",
+        },
+      },
+      "properties": Object {
+        "name": Object {
+          "format": "hostname",
+          "type": "string",
+        },
+      },
+      "required": Array [
+        "name",
+      ],
+      "type": "object",
+    },
+  },
+  "type": "object",
+}
+`;
+
+exports[`visitor should do something 2`] = `
+"type Query {
+  test: DomainAPP
+}
+
+\\"\\"\\"
+A field whose value matches the provided regular expression /^[a-z][a-z0-9-]{2,30}$/.
+\\"\\"\\"
+scalar DomainAPP_properties_app_properties_name
+
+\\"\\"\\"
+The \`String\` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
+\\"\\"\\"
+scalar String
+
+type DomainAPP {
+  app: DomainAPP_properties_app
+  domain: DomainAPP_properties_app_properties_domains
+}
+
+type DomainAPP_properties_app {
+  domains: [DomainAPP_properties_app_properties_domains]
+  name: DomainAPP_properties_app_properties_name!
+}
+
+type DomainAPP_properties_app_properties_domains {
+  name: String!
+}"
+`;
