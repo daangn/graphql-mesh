@@ -6,7 +6,7 @@ import { serveMesh } from './commands/serve/serve';
 import { isAbsolute, resolve, join } from 'path';
 import { existsSync } from 'fs';
 import { logger } from './logger';
-import { FsStoreStorageAdapter, MeshStore } from '@graphql-mesh/store';
+import { FsStoreStorageAdapter, MeshStore, StoreFlags } from '@graphql-mesh/store';
 import { dumpSchema } from './commands/dump-schema';
 
 export { generateTsArtifacts, serveMesh };
@@ -74,16 +74,10 @@ export async function graphqlMesh() {
       'Validates artifacts',
       builder => {},
       async args => {
-        const meshConfig = await findAndParseConfig({
-          dir: baseDir,
-          ignoreAdditionalResolvers: true,
-          store: new MeshStore(join(baseDir, '.mesh'), new FsStoreStorageAdapter(), {
-            readonly: false,
-            validate: true,
-          }),
+        await buildArtifacts(baseDir, {
+          readonly: false, // This will be true when handlers are ready
+          validate: true,
         });
-        const { destroy } = await getMesh(meshConfig);
-        destroy();
       }
     )
     .command(
@@ -91,20 +85,26 @@ export async function graphqlMesh() {
       'Builds artifacts',
       builder => {},
       async args => {
-        const meshConfig = await findAndParseConfig({
-          dir: baseDir,
-          ignoreAdditionalResolvers: true,
-          store: new MeshStore(join(baseDir, '.mesh'), new FsStoreStorageAdapter(), {
-            readonly: false,
-            validate: false,
-          }),
+        await buildArtifacts(baseDir, {
+          readonly: false,
+          validate: false,
         });
-        const { schema, destroy, rawSources } = await getMesh(meshConfig);
-        await Promise.all([
-          generateTsArtifacts(schema, rawSources, meshConfig.mergerType, meshConfig.documents, baseDir, false),
-          dumpSchema(schema, baseDir),
-        ]);
-        destroy();
       }
     ).argv;
 }
+
+const buildArtifacts = async (baseDir: string, flags: StoreFlags) => {
+  const store = new MeshStore(join(baseDir, '.mesh'), new FsStoreStorageAdapter(), flags);
+  const meshConfig = await findAndParseConfig({
+    dir: baseDir,
+    ignoreAdditionalResolvers: true,
+    store,
+  });
+  const { schema, destroy, rawSources } = await getMesh(meshConfig);
+
+  await Promise.all([
+    generateTsArtifacts(schema, rawSources, meshConfig.mergerType, meshConfig.documents, false, store),
+    dumpSchema(schema, baseDir, store),
+  ]);
+  destroy();
+};

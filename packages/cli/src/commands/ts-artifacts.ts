@@ -5,11 +5,10 @@ import { GraphQLSchema, GraphQLObjectType, NamedTypeNode, Kind } from 'graphql';
 import { codegen } from '@graphql-codegen/core';
 import { serverSideScalarsMap } from './scalars-map';
 import { pascalCase } from 'pascal-case';
-import { join } from 'path';
-import { writeFile } from '@graphql-mesh/utils';
 import { Source } from '@graphql-tools/utils';
 import * as tsOperationsPlugin from '@graphql-codegen/typescript-operations';
 import * as tsGenericSdkPlugin from '@graphql-codegen/typescript-generic-sdk';
+import { MeshStore, PredefinedProxyOptions } from '@graphql-mesh/store';
 
 const unifiedContextIdentifier = 'MeshContext';
 
@@ -102,104 +101,105 @@ export async function generateTsArtifacts(
   rawSources: RawSourceOutput[],
   mergerType = 'stitching',
   documents: Source[],
-  cwd: string,
-  flattenTypes: boolean
+  flattenTypes: boolean,
+  store: MeshStore
 ) {
-  const output = await codegen({
-    filename: 'types.ts',
-    documents,
-    config: {
-      scalars: serverSideScalarsMap,
-      skipTypename: true,
-      flattenGeneratedTypes: flattenTypes,
-      onlyOperationTypes: flattenTypes,
-      preResolveTypes: flattenTypes,
-      namingConvention: {
-        enumValues: 'keep',
+  const tsArtifacts = store.proxy('./index.ts', PredefinedProxyOptions.StringWithoutValidation);
+  await tsArtifacts.getWithSet(() =>
+    codegen({
+      filename: 'types.ts',
+      documents,
+      config: {
+        scalars: serverSideScalarsMap,
+        skipTypename: true,
+        flattenGeneratedTypes: flattenTypes,
+        onlyOperationTypes: flattenTypes,
+        preResolveTypes: flattenTypes,
+        namingConvention: {
+          enumValues: 'keep',
+        },
+        documentMode: 'documentNode',
       },
-      documentMode: 'documentNode',
-    },
-    schemaAst: unifiedSchema,
-    schema: undefined as any, // This is not necessary on codegen.
-    skipDocumentsValidation: true,
-    pluginMap: {
-      typescript: tsBasePlugin,
-      typescriptOperations: tsOperationsPlugin,
-      typescriptGenericSdk: tsGenericSdkPlugin,
-      resolvers: tsResolversPlugin,
-      contextSdk: {
-        plugin: async () => {
-          const commonTypes = [
-            `import { MeshContext as BaseMeshContext, ProjectionOptions } from '@graphql-mesh/runtime';`,
-          ];
-          const sdkItems: string[] = [];
-          const contextItems: string[] = [];
-          const results = await Promise.all(
-            rawSources.map(source => {
-              const sourceMap = unifiedSchema.extensions.sourceMap as Map<RawSourceOutput, GraphQLSchema>;
-              let sourceSchema = sourceMap.get(source);
-              if (!sourceSchema) {
-                for (const [keySource, valueSchema] of sourceMap.entries()) {
-                  if (keySource.name === source.name) {
-                    sourceSchema = valueSchema;
+      schemaAst: unifiedSchema,
+      schema: undefined as any, // This is not necessary on codegen.
+      skipDocumentsValidation: true,
+      pluginMap: {
+        typescript: tsBasePlugin,
+        typescriptOperations: tsOperationsPlugin,
+        typescriptGenericSdk: tsGenericSdkPlugin,
+        resolvers: tsResolversPlugin,
+        contextSdk: {
+          plugin: async () => {
+            const commonTypes = [
+              `import { MeshContext as BaseMeshContext, ProjectionOptions } from '@graphql-mesh/runtime';`,
+            ];
+            const sdkItems: string[] = [];
+            const contextItems: string[] = [];
+            const results = await Promise.all(
+              rawSources.map(source => {
+                const sourceMap = unifiedSchema.extensions.sourceMap as Map<RawSourceOutput, GraphQLSchema>;
+                let sourceSchema = sourceMap.get(source);
+                if (!sourceSchema) {
+                  for (const [keySource, valueSchema] of sourceMap.entries()) {
+                    if (keySource.name === source.name) {
+                      sourceSchema = valueSchema;
+                    }
                   }
                 }
-              }
-              const item = generateTypesForApi({
-                schema: sourceSchema,
-                name: source.name,
-              });
+                const item = generateTypesForApi({
+                  schema: sourceSchema,
+                  name: source.name,
+                });
 
-              if (item) {
-                if (item.sdk) {
-                  sdkItems.push(item.sdk.codeAst);
+                if (item) {
+                  if (item.sdk) {
+                    sdkItems.push(item.sdk.codeAst);
+                  }
+                  if (item.context) {
+                    contextItems.push(item.context.codeAst);
+                  }
                 }
-                if (item.context) {
-                  contextItems.push(item.context.codeAst);
-                }
-              }
-              return item;
-            })
-          );
+                return item;
+              })
+            );
 
-          const contextType = `export type ${unifiedContextIdentifier} = ${results
-            .map(r => r?.context?.identifier)
-            .filter(Boolean)
-            .join(' & ')} & BaseMeshContext;`;
+            const contextType = `export type ${unifiedContextIdentifier} = ${results
+              .map(r => r?.context?.identifier)
+              .filter(Boolean)
+              .join(' & ')} & BaseMeshContext;`;
 
-          return {
-            content: [...commonTypes, ...sdkItems, ...contextItems, contextType].join('\n\n'),
-          };
-        },
-      },
-    },
-    plugins: [
-      {
-        typescript: {
-          namingConvention: {
-            enumValues: 'keep',
+            return {
+              content: [...commonTypes, ...sdkItems, ...contextItems, contextType].join('\n\n'),
+            };
           },
         },
       },
-      {
-        resolvers: {
-          useIndexSignature: true,
-          noSchemaStitching: mergerType !== 'stitching',
-          contextType: unifiedContextIdentifier,
-          federation: mergerType === 'federation',
+      plugins: [
+        {
+          typescript: {
+            namingConvention: {
+              enumValues: 'keep',
+            },
+          },
         },
-      },
-      {
-        contextSdk: {},
-      },
-      {
-        typescriptOperations: {},
-      },
-      {
-        typescriptGenericSdk: {},
-      },
-    ],
-  });
-
-  await writeFile(join(cwd, '.mesh/index.ts'), output);
+        {
+          resolvers: {
+            useIndexSignature: true,
+            noSchemaStitching: mergerType !== 'stitching',
+            contextType: unifiedContextIdentifier,
+            federation: mergerType === 'federation',
+          },
+        },
+        {
+          contextSdk: {},
+        },
+        {
+          typescriptOperations: {},
+        },
+        {
+          typescriptGenericSdk: {},
+        },
+      ],
+    })
+  );
 }

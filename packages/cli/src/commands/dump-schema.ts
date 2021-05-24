@@ -1,13 +1,7 @@
-import { writeFile, writeJSON } from '@graphql-mesh/utils';
-import { GraphQLSchema, introspectionFromSchema } from 'graphql';
-import { printSchemaWithDirectives } from '@graphql-tools/utils';
-import { join } from 'path';
+import { GraphQLSchema } from 'graphql';
+import { MeshStore, PredefinedProxyOptions } from '@graphql-mesh/store';
 
-export async function dumpSchema(schema: GraphQLSchema, cwd: string) {
-  const sdl = printSchemaWithDirectives(schema);
-  const introspection = introspectionFromSchema(schema);
-  await Promise.all([
-    writeFile(join(cwd, '.mesh/schema.graphql'), sdl),
-    writeJSON(join(cwd, '.mesh/schema.json'), introspection),
-  ]);
+export async function dumpSchema(schema: GraphQLSchema, cwd: string, store: MeshStore) {
+  const sdl = store.proxy('schema.graphql', PredefinedProxyOptions.GraphQLSchemaWithDiffing);
+  await sdl.getWithSet(() => schema);
 }
