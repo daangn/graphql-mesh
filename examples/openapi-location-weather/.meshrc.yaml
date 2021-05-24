@@ -46,5 +46,5 @@ require:
 additionalResolvers:
   - ./src/mesh/additional-resolvers.ts
 
-serve:
-  exampleQuery: ./example-query.graphql
+documents:
+  - ./example-query.graphql
