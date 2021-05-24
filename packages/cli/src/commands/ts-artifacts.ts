@@ -5,6 +5,11 @@ import { GraphQLSchema, GraphQLObjectType, NamedTypeNode, Kind } from 'graphql';
 import { codegen } from '@graphql-codegen/core';
 import { serverSideScalarsMap } from './scalars-map';
 import { pascalCase } from 'pascal-case';
+import { join } from 'path';
+import { writeFile } from '@graphql-mesh/utils';
+import { Source } from '@graphql-tools/utils';
+import * as tsOperationsPlugin from '@graphql-codegen/typescript-operations';
+import * as tsGenericSdkPlugin from '@graphql-codegen/typescript-generic-sdk';
 
 const unifiedContextIdentifier = 'MeshContext';
 
@@ -92,22 +97,35 @@ ${Object.values(subscriptionsOperationMap).join(',\n')}
   };
 }
 
-export function generateTsTypes(
+export async function generateTsArtifacts(
   unifiedSchema: GraphQLSchema,
   rawSources: RawSourceOutput[],
-  mergerType = 'stitching'
-): Promise<string> {
-  return codegen({
+  mergerType = 'stitching',
+  documents: Source[],
+  cwd: string,
+  flattenTypes: boolean
+) {
+  const output = await codegen({
     filename: 'types.ts',
-    documents: [],
+    documents,
     config: {
       scalars: serverSideScalarsMap,
       skipTypename: true,
+      flattenGeneratedTypes: flattenTypes,
+      onlyOperationTypes: flattenTypes,
+      preResolveTypes: flattenTypes,
+      namingConvention: {
+        enumValues: 'keep',
+      },
+      documentMode: 'documentNode',
     },
     schemaAst: unifiedSchema,
     schema: undefined as any, // This is not necessary on codegen.
+    skipDocumentsValidation: true,
     pluginMap: {
       typescript: tsBasePlugin,
+      typescriptOperations: tsOperationsPlugin,
+      typescriptGenericSdk: tsGenericSdkPlugin,
       resolvers: tsResolversPlugin,
       contextSdk: {
         plugin: async () => {
@@ -174,6 +192,14 @@ export function generateTsTypes(
       {
         contextSdk: {},
       },
+      {
+        typescriptOperations: {},
+      },
+      {
+        typescriptGenericSdk: {},
+      },
     ],
   });
+
+  await writeFile(join(cwd, '.mesh/index.ts'), output);
 }

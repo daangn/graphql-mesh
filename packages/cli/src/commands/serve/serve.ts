@@ -54,7 +54,6 @@ export async function serveMesh({ baseDir, argsPort, store }: ServeMeshOptions) 
     .catch(handleFatalError);
   const {
     fork,
-    exampleQuery,
     port: configPort,
     hostname = 'localhost',
     cors: corsConfig,
@@ -169,7 +168,11 @@ export async function serveMesh({ baseDir, argsPort, store }: ServeMeshOptions) 
     app.use(graphqlPath, graphqlUploadExpress({ maxFileSize, maxFiles }), graphqlHandler(mesh$));
 
     if (typeof playground !== 'undefined' ? playground : process.env.NODE_ENV?.toLowerCase() !== 'production') {
-      const playgroundMiddleware = playgroundMiddlewareFactory({ baseDir, exampleQuery, graphqlPath });
+      const playgroundMiddleware = playgroundMiddlewareFactory({
+        baseDir,
+        documents: meshConfig.documents,
+        graphqlPath,
+      });
       if (!staticFiles) {
         app.get('/', playgroundMiddleware);
       }

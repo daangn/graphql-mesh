@@ -9,7 +9,7 @@ import {
   MeshTransformLibrary,
   YamlConfig,
 } from '@graphql-mesh/types';
-import { IResolvers } from '@graphql-tools/utils';
+import { IResolvers, Source } from '@graphql-tools/utils';
 import Ajv from 'ajv';
 import { cosmiconfig, defaultLoaders } from 'cosmiconfig';
 import { KeyValueCache } from 'fetchache';
@@ -22,6 +22,7 @@ import {
   resolveCache,
   resolveMerger,
   resolvePubSub,
+  resolveDocuments,
 } from './utils';
 import { stringInterpolator } from '@graphql-mesh/utils';
 import { MergedTypeConfig, MergedFieldConfig } from '@graphql-tools/delegate';
@@ -71,6 +72,7 @@ export type ProcessedConfig = {
   pubsub: MeshPubSub;
   liveQueryInvalidations: YamlConfig.LiveQueryInvalidation[];
   config: YamlConfig.Config;
+  documents: Source[];
 };
 
 function getInMemoryMeshStore(dir = cwd()) {
@@ -108,7 +110,7 @@ export async function processConfig(
 
   const sourcesStore = rootStore.child('sources');
 
-  const [sources, transforms, additionalTypeDefs, additionalResolvers, merger] = await Promise.all([
+  const [sources, transforms, additionalTypeDefs, additionalResolvers, merger, documents] = await Promise.all([
     Promise.all(
       config.sources.map<Promise<MeshResolvedSource>>(async source => {
         const handlerName = Object.keys(source.handler)[0];
@@ -264,6 +266,7 @@ export async function processConfig(
       pubsub
     ),
     resolveMerger(config.merger, importFn),
+    resolveDocuments(config.documents, dir),
   ]);
 
   return {
@@ -277,6 +280,7 @@ export async function processConfig(
     pubsub,
     liveQueryInvalidations: config.liveQueryInvalidations,
     config,
+    documents,
   };
 }
 

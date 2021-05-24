@@ -5,5 +5,5 @@ sources:
         endpoint: localhost:50051
         useReflection: true
 
-serve:
-  exampleQuery: example-queries/*.graphql
+documents:
+  - example-queries/*.graphql

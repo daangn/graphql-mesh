@@ -7,5 +7,5 @@ sources:
         user: rfamro
         database: Rfam
 
-serve:
-  exampleQuery: example-query.graphql
+documents:
+  - example-query.graphql

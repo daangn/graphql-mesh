@@ -23,7 +23,7 @@ import {
 export function visitJSONSchema(schema: JSONSchema, schemaComposer: SchemaComposer, prefix: string) {
   const refTypeComposerMap = new Map<any, any>();
 
-  function ensureTypeComposer(maybeTypeComposer) {
+  function ensureTypeComposer(maybeTypeComposer: any) {
     return refTypeComposerMap.get(maybeTypeComposer) || maybeTypeComposer;
   }
 
@@ -207,7 +207,7 @@ export function visitJSONSchema(schema: JSONSchema, schemaComposer: SchemaCompos
           });
       }
     };
-    const result = getTypeComposer(subSchema, schemaComposer, path, prefix);
+    const result = getTypeComposer();
     refTypeComposerMap.set(subSchema, result);
     return result;
   });

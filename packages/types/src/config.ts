@@ -43,7 +43,7 @@ export interface Config {
    * (.js, .jsx, .graphql, .gql, .ts and .tsx files are supported.
    * But TypeScript support is only available if `ts-node` is installed and `ts-node/register` is added under `require` parameter)
    */
-  operations?: string[];
+  documents?: string[];
 }
 /**
  * Configuration for `mesh serve` command.
@@ -62,13 +62,6 @@ export interface ServeConfig {
    * The binding hostname (default: `localhost`)
    */
   hostname?: string;
-  /**
-   * Provide an example query or queries for GraphQL Playground
-   * The value can be the file path, glob expression for the file paths or the SDL.
-   * (.js, .jsx, .graphql, .gql, .ts and .tsx files are supported.
-   * But TypeScript support is only available if `ts-node` is installed and `ts-node/register` is added under `require` parameter)
-   */
-  exampleQuery?: string;
   cors?: CorsConfig;
   /**
    * Express/Connect compatible handlers and middlewares extend GraphQL Mesh HTTP Server (Any of: WebhookHandler, ExpressHandler)

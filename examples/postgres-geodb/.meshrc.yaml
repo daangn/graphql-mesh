@@ -37,9 +37,5 @@ additionalResolvers:
       query: "location:{root.name}"
       first: "{args.limit}"
 
-cache:
-  file:
-    path: ./mesh-cache.json
-
-serve:
-  exampleQuery: ./src/test.query.graphql
+documents: 
+  - ./src/test.query.graphql

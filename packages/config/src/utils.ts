@@ -3,7 +3,7 @@ import { MeshHandlerLibrary, KeyValueCache, YamlConfig, MergerFn, ImportFn, Mesh
 import { resolve } from 'path';
 import { IResolvers, printSchemaWithDirectives } from '@graphql-tools/utils';
 import { paramCase } from 'param-case';
-import { loadTypedefs } from '@graphql-tools/load';
+import { loadDocuments, loadTypedefs } from '@graphql-tools/load';
 import { GraphQLFileLoader } from '@graphql-tools/graphql-file-loader';
 import { get, set, kebabCase } from 'lodash';
 import { stringInterpolator } from '@graphql-mesh/utils';
@@ -215,4 +215,15 @@ export async function resolveMerger(mergerConfig: YamlConfig.Config['merger'], i
     return pkg.default || pkg;
   }
   return StitchingMerger;
+}
+
+export async function resolveDocuments(documentsConfig: YamlConfig.Config['documents'], cwd: string) {
+  if (!documentsConfig) {
+    return [];
+  }
+  return loadDocuments(documentsConfig, {
+    loaders: [new CodeFileLoader(), new GraphQLFileLoader()],
+    skipGraphQLImport: true,
+    cwd,
+  });
 }

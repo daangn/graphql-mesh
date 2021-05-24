@@ -1,18 +1,15 @@
 import { findAndParseConfig } from '@graphql-mesh/config';
 import { getMesh } from '@graphql-mesh/runtime';
 import * as yargs from 'yargs';
-import { generateTsTypes } from './commands/typescript';
-import { generateSdk } from './commands/generate-sdk';
+import { generateTsArtifacts } from './commands/ts-artifacts';
 import { serveMesh } from './commands/serve/serve';
 import { isAbsolute, resolve, join } from 'path';
 import { existsSync } from 'fs';
 import { logger } from './logger';
-import { introspectionFromSchema } from 'graphql';
-import { printSchemaWithDirectives } from '@graphql-tools/utils';
-import { jsonFlatStringify, writeFile } from '@graphql-mesh/utils';
 import { FsStoreStorageAdapter, MeshStore } from '@graphql-mesh/store';
+import { dumpSchema } from './commands/dump-schema';
 
-export { generateSdk, serveMesh };
+export { generateTsArtifacts, serveMesh };
 
 export async function graphqlMesh() {
   let baseDir = process.cwd();
@@ -52,9 +49,6 @@ export async function graphqlMesh() {
         builder.option('port', {
           type: 'number',
         });
-        builder.option('validate', {
-          type: 'boolean',
-        });
         builder.option('prod', {
           type: 'boolean',
           coerce: value => value || process.env.NODE_ENV?.toLowerCase() === 'production',
@@ -67,7 +61,7 @@ export async function graphqlMesh() {
             argsPort: args.port,
             store: new MeshStore(join(baseDir, '.mesh'), new FsStoreStorageAdapter(), {
               readonly: args.prod,
-              validate: args.validate,
+              validate: false,
             }),
           });
         } catch (e) {
@@ -75,93 +69,24 @@ export async function graphqlMesh() {
         }
       }
     )
-    .command<{ operations: string[]; output: string; depth: number; 'flatten-types': boolean }>(
-      'generate-sdk',
-      'Generates fully type-safe SDK based on unifid GraphQL schema and GraphQL operations',
-      builder => {
-        builder
-          .option('operations', {
-            type: 'array',
-          })
-          .option('depth', {
-            type: 'number',
-          })
-          .option('output', {
-            required: true,
-            type: 'string',
-          })
-          .option('flatten-types', {
-            type: 'boolean',
-          });
-      },
-      async args => {
-        const meshConfig = await findAndParseConfig({
-          dir: baseDir,
-          ignoreAdditionalResolvers: true,
-        });
-        const { schema, destroy } = await getMesh(meshConfig);
-        const result = await generateSdk(schema, args);
-        const outFile = isAbsolute(args.output) ? args.output : resolve(process.cwd(), args.output);
-        await writeFile(outFile, result);
-        destroy();
-      }
-    )
     .command<{ output: string }>(
-      'dump-schema',
-      'Generates a JSON introspection / GraphQL SDL schema file from your mesh.',
-      builder => {
-        builder.option('output', {
-          required: true,
-          type: 'string',
-        });
-      },
+      'build',
+      'Builds artifacts',
+      builder => {},
       async args => {
         const meshConfig = await findAndParseConfig({
           dir: baseDir,
           ignoreAdditionalResolvers: true,
+          store: new MeshStore(join(baseDir, '.mesh'), new FsStoreStorageAdapter(), {
+            readonly: false,
+            validate: false,
+          }),
         });
-        const { schema, destroy } = await getMesh(meshConfig);
-        let fileContent: string;
-        const fileName = args.output;
-        if (fileName.endsWith('.json')) {
-          const introspection = introspectionFromSchema(schema);
-          fileContent = jsonFlatStringify(introspection, null, 2);
-        } else if (
-          fileName.endsWith('.graphql') ||
-          fileName.endsWith('.graphqls') ||
-          fileName.endsWith('.gql') ||
-          fileName.endsWith('.gqls')
-        ) {
-          const printedSchema = printSchemaWithDirectives(schema);
-          fileContent = printedSchema;
-        } else {
-          logger.error(`Invalid file extension ${fileName}`);
-          destroy();
-          return;
-        }
-        const outFile = isAbsolute(fileName) ? fileName : resolve(process.cwd(), fileName);
-        await writeFile(outFile, fileContent);
-        destroy();
-      }
-    )
-    .command<{ output: string }>(
-      'typescript',
-      'Generates TypeScript typings for the generated mesh',
-      builder => {
-        builder.option('output', {
-          required: true,
-          type: 'string',
-        });
-      },
-      async args => {
-        const meshConfig = await findAndParseConfig({
-          dir: baseDir,
-          ignoreAdditionalResolvers: true,
-        });
-        const { schema, rawSources, destroy } = await getMesh(meshConfig);
-        const result = await generateTsTypes(schema, rawSources, meshConfig.mergerType);
-        const outFile = isAbsolute(args.output) ? args.output : resolve(process.cwd(), args.output);
-        await writeFile(outFile, result);
+        const { schema, destroy, rawSources } = await getMesh(meshConfig);
+        await Promise.all([
+          generateTsArtifacts(schema, rawSources, meshConfig.mergerType, meshConfig.documents, baseDir, false),
+          dumpSchema(schema, baseDir),
+        ]);
         destroy();
       }
     ).argv;

@@ -50,5 +50,5 @@ transforms:
         - apply: Company.name
           faker: '{{company.companyName}}'
 
-serve:
-  exampleQuery: example-query.graphql
+documents:
+  - example-query.graphql

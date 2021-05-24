@@ -50,7 +50,7 @@ export default class PostGraphileHandler implements MeshHandler {
 
     this.pubsub.subscribe('destroy', () => pgPool.end());
 
-    const cacheKey = this.name + '_introspection';
+    const cacheKey = this.name + '_introspection.json';
 
     const dummyCacheFilePath = join(tmpdir(), cacheKey);
     let cachedIntrospection = await this.pgCache.get();
@@ -87,7 +87,7 @@ export default class PostGraphileHandler implements MeshHandler {
 
     if (!cachedIntrospection) {
       await writeCache();
-      cachedIntrospection = await readFileOrUrlWithCache(cacheKey, this.cache, {
+      cachedIntrospection = await readFileOrUrlWithCache(dummyCacheFilePath, this.cache, {
         cwd: this.baseDir,
       });
       await this.pgCache.set(cachedIntrospection);
