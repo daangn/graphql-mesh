@@ -1,19 +1,12 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
-import {
-  GetMeshSourceOptions,
-  MeshHandler,
-  MeshSource,
-  YamlConfig,
-  MeshPubSub,
-  KeyValueCache,
-} from '@graphql-mesh/types';
+import { GetMeshSourceOptions, MeshHandler, MeshSource, YamlConfig, MeshPubSub } from '@graphql-mesh/types';
 import { subscribe } from 'graphql';
 import { withPostGraphileContext, Plugin } from 'postgraphile';
 import { getPostGraphileBuilder } from 'postgraphile-core';
 import { Pool } from 'pg';
 import { join } from 'path';
 import { tmpdir } from 'os';
-import { loadFromModuleExportExpression, readFileOrUrlWithCache, jitExecutorFactory } from '@graphql-mesh/utils';
+import { loadFromModuleExportExpression, jitExecutorFactory, readJSON } from '@graphql-mesh/utils';
 import { ExecutionParams } from '@graphql-tools/delegate';
 import { PredefinedProxyOptions } from '@graphql-mesh/store';
 
@@ -21,15 +14,13 @@ export default class PostGraphileHandler implements MeshHandler {
   private name: string;
   private config: YamlConfig.PostGraphileHandler;
   private baseDir: string;
-  private cache: KeyValueCache;
   private pubsub: MeshPubSub;
   private pgCache: any;
 
-  constructor({ name, config, baseDir, cache, pubsub, store }: GetMeshSourceOptions<YamlConfig.PostGraphileHandler>) {
+  constructor({ name, config, baseDir, pubsub, store }: GetMeshSourceOptions<YamlConfig.PostGraphileHandler>) {
     this.name = name;
     this.config = config;
     this.baseDir = baseDir;
-    this.cache = cache;
     this.pubsub = pubsub;
     this.pgCache = store.proxy('pgCache.json', PredefinedProxyOptions.JsonWithoutValidation);
   }
@@ -87,9 +78,7 @@ export default class PostGraphileHandler implements MeshHandler {
 
     if (!cachedIntrospection) {
       await writeCache();
-      cachedIntrospection = await readFileOrUrlWithCache(dummyCacheFilePath, this.cache, {
-        cwd: this.baseDir,
-      });
+      cachedIntrospection = await readJSON(dummyCacheFilePath);
       await this.pgCache.set(cachedIntrospection);
     }
 

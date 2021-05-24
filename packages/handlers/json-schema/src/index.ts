@@ -140,13 +140,13 @@ export default class JsonSchemaHandler implements MeshHandler {
       [requestSchema, responseSchema] = await Promise.all([
         requestSchema ||
           (operationConfig.requestSchema &&
-            readFileOrUrlWithCache(operationConfig.requestSchema, this.cache, {
+            readFileOrUrlWithCache<any>(operationConfig.requestSchema, this.cache, {
               cwd: this.baseDir,
               headers: this.config.schemaHeaders,
             })),
         responseSchema ||
           (operationConfig.responseSchema &&
-            readFileOrUrlWithCache(operationConfig.responseSchema, this.cache, {
+            readFileOrUrlWithCache<any>(operationConfig.responseSchema, this.cache, {
               cwd: this.baseDir,
               headers: this.config.schemaHeaders,
             })),
@@ -316,29 +316,27 @@ export default class JsonSchemaHandler implements MeshHandler {
     };
   }
 
-  private async generateJsonSchemaFromSample({ samplePath, schemaPath }: { samplePath: string; schemaPath?: string }) {
-    const schemaProxy = this.store.proxy(samplePath, PredefinedProxyOptions.JsonWithoutValidation);
-    let schema = await schemaProxy.get();
-    if (schema) {
-      return schema;
-    }
-    const sample = await readFileOrUrlWithCache(samplePath, this.cache, { cwd: this.baseDir });
-    schema = toJsonSchema(sample, {
-      required: false,
-      objects: {
-        additionalProperties: false,
-      },
-      strings: {
-        detectFormat: true,
-      },
-      arrays: {
-        mode: 'first',
-      },
+  private generateJsonSchemaFromSample({ samplePath, schemaPath }: { samplePath: string; schemaPath?: string }) {
+    const schemaProxy = this.store.proxy(samplePath, JsonSchemaWithDiff);
+    return schemaProxy.getWithSet(async () => {
+      const sample = await readFileOrUrlWithCache(samplePath, this.cache, { cwd: this.baseDir });
+      const schema = toJsonSchema(sample, {
+        required: false,
+        objects: {
+          additionalProperties: false,
+        },
+        strings: {
+          detectFormat: true,
+        },
+        arrays: {
+          mode: 'first',
+        },
+      });
+      if (schemaPath) {
+        writeJSON(schemaPath, schema).catch(e => `JSON Schema for ${samplePath} couldn't get cached: ${e.message}`);
+      }
+      await schemaProxy.set(schema as any);
+      return schema as any;
     });
-    if (schemaPath) {
-      writeJSON(schemaPath, schema).catch(e => `JSON Schema for ${samplePath} couldn't get cached: ${e.message}`);
-    }
-    await schemaProxy.set(schema);
-    return schema;
   }
 }

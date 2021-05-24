@@ -69,7 +69,24 @@ export async function graphqlMesh() {
         }
       }
     )
-    .command<{ output: string }>(
+    .command(
+      'validate',
+      'Validates artifacts',
+      builder => {},
+      async args => {
+        const meshConfig = await findAndParseConfig({
+          dir: baseDir,
+          ignoreAdditionalResolvers: true,
+          store: new MeshStore(join(baseDir, '.mesh'), new FsStoreStorageAdapter(), {
+            readonly: false,
+            validate: true,
+          }),
+        });
+        const { destroy } = await getMesh(meshConfig);
+        destroy();
+      }
+    )
+    .command(
       'build',
       'Builds artifacts',
       builder => {},
