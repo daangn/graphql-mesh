@@ -23,23 +23,20 @@ import { logger } from '../../logger';
 import { handleFatalError } from '../../handleFatalError';
 import { spinner } from '../../spinner';
 import open from 'open';
-import { MeshStore } from '@graphql-mesh/store';
 
 const { readFile } = fsPromises;
 
 interface ServeMeshOptions {
   baseDir: string;
   argsPort?: number;
-  store?: MeshStore;
 }
 
-export async function serveMesh({ baseDir, argsPort, store }: ServeMeshOptions) {
+export async function serveMesh({ baseDir, argsPort }: ServeMeshOptions) {
   spinner.start('Generating Mesh schema...');
   let readyFlag = false;
 
   const meshConfig = await findAndParseConfig({
     dir: baseDir,
-    store,
   });
   const mesh$ = getMesh(meshConfig)
     .then(mesh => {

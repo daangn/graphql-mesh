@@ -1,4 +1,4 @@
-import { Maybe, RawSourceOutput } from '@graphql-mesh/types';
+import { Maybe, RawSourceOutput, YamlConfig } from '@graphql-mesh/types';
 import * as tsBasePlugin from '@graphql-codegen/typescript';
 import * as tsResolversPlugin from '@graphql-codegen/typescript-resolvers';
 import { GraphQLSchema, GraphQLObjectType, NamedTypeNode, Kind } from 'graphql';
@@ -8,7 +8,6 @@ import { pascalCase } from 'pascal-case';
 import { Source } from '@graphql-tools/utils';
 import * as tsOperationsPlugin from '@graphql-codegen/typescript-operations';
 import * as tsGenericSdkPlugin from '@graphql-codegen/typescript-generic-sdk';
-import { MeshStore, PredefinedProxyOptions } from '@graphql-mesh/store';
 
 const unifiedContextIdentifier = 'MeshContext';
 
@@ -96,110 +95,136 @@ ${Object.values(subscriptionsOperationMap).join(',\n')}
   };
 }
 
-export async function generateTsArtifacts(
-  unifiedSchema: GraphQLSchema,
-  rawSources: RawSourceOutput[],
+export async function generateTsArtifacts({
+  unifiedSchema,
+  rawSources,
   mergerType = 'stitching',
-  documents: Source[],
-  flattenTypes: boolean,
-  store: MeshStore
-) {
-  const tsArtifacts = store.proxy('./index.ts', PredefinedProxyOptions.StringWithoutValidation);
-  await tsArtifacts.getWithSet(() =>
-    codegen({
-      filename: 'types.ts',
-      documents,
-      config: {
-        scalars: serverSideScalarsMap,
-        skipTypename: true,
-        flattenGeneratedTypes: flattenTypes,
-        onlyOperationTypes: flattenTypes,
-        preResolveTypes: flattenTypes,
-        namingConvention: {
-          enumValues: 'keep',
-        },
-        documentMode: 'documentNode',
+  documents,
+  flattenTypes,
+  rawConfig,
+}: {
+  unifiedSchema: GraphQLSchema;
+  rawSources: RawSourceOutput[];
+  mergerType: string;
+  documents: Source[];
+  flattenTypes: boolean;
+  rawConfig: YamlConfig.Config;
+}) {
+  const codegenOutput = await codegen({
+    filename: 'types.ts',
+    documents,
+    config: {
+      scalars: serverSideScalarsMap,
+      skipTypename: true,
+      flattenGeneratedTypes: flattenTypes,
+      onlyOperationTypes: flattenTypes,
+      preResolveTypes: flattenTypes,
+      namingConvention: {
+        enumValues: 'keep',
       },
-      schemaAst: unifiedSchema,
-      schema: undefined as any, // This is not necessary on codegen.
-      skipDocumentsValidation: true,
-      pluginMap: {
-        typescript: tsBasePlugin,
-        typescriptOperations: tsOperationsPlugin,
-        typescriptGenericSdk: tsGenericSdkPlugin,
-        resolvers: tsResolversPlugin,
-        contextSdk: {
-          plugin: async () => {
-            const commonTypes = [
-              `import { MeshContext as BaseMeshContext, ProjectionOptions } from '@graphql-mesh/runtime';`,
-            ];
-            const sdkItems: string[] = [];
-            const contextItems: string[] = [];
-            const results = await Promise.all(
-              rawSources.map(source => {
-                const sourceMap = unifiedSchema.extensions.sourceMap as Map<RawSourceOutput, GraphQLSchema>;
-                let sourceSchema = sourceMap.get(source);
-                if (!sourceSchema) {
-                  for (const [keySource, valueSchema] of sourceMap.entries()) {
-                    if (keySource.name === source.name) {
-                      sourceSchema = valueSchema;
-                    }
+      documentMode: 'documentNode',
+    },
+    schemaAst: unifiedSchema,
+    schema: undefined as any, // This is not necessary on codegen.
+    skipDocumentsValidation: true,
+    pluginMap: {
+      typescript: tsBasePlugin,
+      typescriptOperations: tsOperationsPlugin,
+      typescriptGenericSdk: tsGenericSdkPlugin,
+      resolvers: tsResolversPlugin,
+      contextSdk: {
+        plugin: async () => {
+          const commonTypes = [
+            `import { MeshContext as BaseMeshContext, ProjectionOptions } from '@graphql-mesh/runtime';`,
+          ];
+          const sdkItems: string[] = [];
+          const contextItems: string[] = [];
+          const results = await Promise.all(
+            rawSources.map(source => {
+              const sourceMap = unifiedSchema.extensions.sourceMap as Map<RawSourceOutput, GraphQLSchema>;
+              let sourceSchema = sourceMap.get(source);
+              if (!sourceSchema) {
+                for (const [keySource, valueSchema] of sourceMap.entries()) {
+                  if (keySource.name === source.name) {
+                    sourceSchema = valueSchema;
                   }
                 }
-                const item = generateTypesForApi({
-                  schema: sourceSchema,
-                  name: source.name,
-                });
+              }
+              const item = generateTypesForApi({
+                schema: sourceSchema,
+                name: source.name,
+              });
 
-                if (item) {
-                  if (item.sdk) {
-                    sdkItems.push(item.sdk.codeAst);
-                  }
-                  if (item.context) {
-                    contextItems.push(item.context.codeAst);
-                  }
+              if (item) {
+                if (item.sdk) {
+                  sdkItems.push(item.sdk.codeAst);
                 }
-                return item;
-              })
-            );
+                if (item.context) {
+                  contextItems.push(item.context.codeAst);
+                }
+              }
+              return item;
+            })
+          );
 
-            const contextType = `export type ${unifiedContextIdentifier} = ${results
-              .map(r => r?.context?.identifier)
-              .filter(Boolean)
-              .join(' & ')} & BaseMeshContext;`;
+          const contextType = `export type ${unifiedContextIdentifier} = ${results
+            .map(r => r?.context?.identifier)
+            .filter(Boolean)
+            .join(' & ')} & BaseMeshContext;`;
 
-            return {
-              content: [...commonTypes, ...sdkItems, ...contextItems, contextType].join('\n\n'),
-            };
+          return {
+            content: [...commonTypes, ...sdkItems, ...contextItems, contextType].join('\n\n'),
+          };
+        },
+      },
+    },
+    plugins: [
+      {
+        typescript: {
+          namingConvention: {
+            enumValues: 'keep',
           },
         },
       },
-      plugins: [
-        {
-          typescript: {
-            namingConvention: {
-              enumValues: 'keep',
-            },
-          },
+      {
+        resolvers: {
+          useIndexSignature: true,
+          noSchemaStitching: mergerType !== 'stitching',
+          contextType: unifiedContextIdentifier,
+          federation: mergerType === 'federation',
         },
-        {
-          resolvers: {
-            useIndexSignature: true,
-            noSchemaStitching: mergerType !== 'stitching',
-            contextType: unifiedContextIdentifier,
-            federation: mergerType === 'federation',
-          },
-        },
-        {
-          contextSdk: {},
-        },
-        {
-          typescriptOperations: {},
-        },
-        {
-          typescriptGenericSdk: {},
-        },
-      ],
-    })
+      },
+      {
+        contextSdk: {},
+      },
+      {
+        typescriptOperations: {},
+      },
+      {
+        typescriptGenericSdk: {},
+      },
+    ],
+  });
+  return [
+    codegenOutput,
+    /* TypeScript */ `
+import { findAndParseConfig } from '@graphql-mesh/config';
+import { getMesh } from '@graphql-mesh/runtime';
+import { join } from 'path';
+
+export async function getBuiltMesh(configProcessOptions?: ConfigProcessOptions) {
+  const meshConfig = await findAndParseConfig(
+    {
+      dir: join(__dirname, '..')
+    }
   );
+  return getMesh(meshConfig);
+}
+
+export async function getMeshSDK() {
+  const { sdkRequester } = await getBuiltMesh();
+  return getSdk(sdkRequester);
+}
+      `,
+  ].join('\n');
 }

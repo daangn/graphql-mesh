@@ -4,7 +4,10 @@ import { MeshStore, PredefinedProxyOptions } from '@graphql-mesh/store';
 type StoreEntry<V> = { expiresAt: number; value: V };
 
 export default class StoreCache<V = any> implements KeyValueCache<V> {
-  constructor(private store: MeshStore) {}
+  private store: MeshStore;
+  constructor({ store }: { store: MeshStore }) {
+    this.store = store;
+  }
 
   private getProxy(name: string) {
     return this.store.proxy<StoreEntry<V>>(name, PredefinedProxyOptions.JsonWithoutValidation);

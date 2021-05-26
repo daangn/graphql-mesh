@@ -27,7 +27,7 @@ import {
 import { stringInterpolator } from '@graphql-mesh/utils';
 import { MergedTypeConfig, MergedFieldConfig } from '@graphql-tools/delegate';
 import { get, set } from 'lodash';
-import { InMemoryStoreStorageAdapter, MeshStore } from '@graphql-mesh/store';
+import { FsStoreStorageAdapter, MeshStore } from '@graphql-mesh/store';
 import { cwd } from 'process';
 
 export type ConfigProcessOptions = {
@@ -75,8 +75,8 @@ export type ProcessedConfig = {
   documents: Source[];
 };
 
-function getInMemoryMeshStore(dir = cwd()) {
-  const storeStorageAdapter = new InMemoryStoreStorageAdapter();
+function getDefaultMeshStore(dir = cwd()) {
+  const storeStorageAdapter = new FsStoreStorageAdapter();
   return new MeshStore(resolve(dir, '.mesh'), storeStorageAdapter, {
     /**
      * TODO:
@@ -103,7 +103,7 @@ export async function processConfig(
 
   await Promise.all(config.require?.map(mod => importFn(mod)) || []);
 
-  const rootStore = providedStore || getInMemoryMeshStore();
+  const rootStore = providedStore || getDefaultMeshStore();
 
   const cache = await resolveCache(config.cache, importFn, rootStore);
   const pubsub = await resolvePubSub(config.pubsub, importFn);

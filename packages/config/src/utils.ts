@@ -170,14 +170,13 @@ export async function resolveCache(
     const pkg = await getPackage<any>(moduleName, 'cache', importFn);
     const Cache = pkg.default || pkg;
 
-    return new Cache(config);
+    return new Cache({
+      ...config,
+      store,
+    });
   }
-  const StoreCache = await import('@graphql-mesh/cache-store').then(m => m.default);
-  const cache = new StoreCache(
-    store.child('cache', {
-      readonly: false,
-    })
-  );
+  const InMemoryLRUCache = await import('@graphql-mesh/cache-inmemory-lru').then(m => m.default);
+  const cache = new InMemoryLRUCache();
   return cache;
 }
 
